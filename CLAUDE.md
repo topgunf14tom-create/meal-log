@@ -207,6 +207,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 
 ### 7.1 ヘルスコネクトと消費カロリー（`lib/core/activity.dart`、`lib/services/activity_sync.dart`）
 - 読み取る権限：体重・体脂肪率・除脂肪量・身長・歩数・エクササイズ・活動カロリー（読み取りのみ、書き込みなし）
+- 権限リクエスト：Android 14 以降は requestPermissions（OS 組み込みのヘルスコネクト）、13 以前は PermissionController の契約の Intent を startActivityForResult
 - 取り込みのタイミング：アプリ起動時・復帰時（5分以内の再実行は省略）、ホームの引っ張り更新・同期ボタン、日付切替でその日のデータが無いとき。バックグラウンド実行はしない
 - 体重・体脂肪：前回取り込みの2日前から（初回は30日前から）読み、日ごとに最新の値を weights へ
 - 対象日：今日・昨日・表示中の日（30日以内）

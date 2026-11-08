@@ -121,10 +121,15 @@ class MainActivity : FlutterActivity() {
         if (call.method == "request") {
             pendingRequest?.error("cancelled", "別の権限リクエストが始まりました", null)
             try {
-                val intent = permissionContract.createIntent(this, permissionKeys.values.toSet())
                 pendingRequest = result
-                @Suppress("DEPRECATION")
-                startActivityForResult(intent, REQUEST_CODE)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    // Android 14 以降はヘルスコネクトが OS に組み込まれ、通常の権限リクエストで許可画面が出る
+                    requestPermissions(permissionKeys.values.toTypedArray(), REQUEST_CODE)
+                } else {
+                    val intent = permissionContract.createIntent(this, permissionKeys.values.toSet())
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(intent, REQUEST_CODE)
+                }
             } catch (e: Throwable) {
                 pendingRequest = null
                 result.error("request_failed", "${e.javaClass.simpleName}: ${e.message}", e.stackTraceToString().take(3000))
@@ -146,11 +151,20 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE) deliverGranted()
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_CODE) return
+        if (requestCode == REQUEST_CODE) deliverGranted()
+    }
+
+    /** 権限画面が閉じたあと、許可済みの権限を Dart 側へ返す */
+    private fun deliverGranted() {
         val r = pendingRequest ?: return
         pendingRequest = null
         scope.launch {

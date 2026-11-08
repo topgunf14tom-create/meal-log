@@ -10,6 +10,7 @@ import '../../data/entities.dart';
 import '../../services/nutrition_service.dart';
 import '../result_edit/result_edit_screen.dart';
 import '../settings/api_key_widgets.dart';
+import 'alcohol_screen.dart';
 
 /// 記録方法を選ぶ画面
 class RecordScreen extends StatefulWidget {
@@ -116,6 +117,14 @@ class _RecordScreenState extends State<RecordScreen> {
     );
   }
 
+  Future<void> _alcohol() async {
+    final items = await Navigator.of(context).push<List<MealItem>>(
+      MaterialPageRoute(builder: (_) => const AlcoholScreen()),
+    );
+    if (items == null || items.isEmpty || !mounted) return;
+    await _openEditor(items: items, model: 'manual');
+  }
+
   Future<void> _analyze(String label, Future<AnalysisResult> Function() job, Uint8List? photo) async {
     setState(() {
       _busy = true;
@@ -205,6 +214,7 @@ class _RecordScreenState extends State<RecordScreen> {
                 const SizedBox(height: 16),
                 _action(Icons.photo_camera, '写真で解析', '撮影した料理のカロリー・PFCを推定（Haiku）', _photo),
                 _action(Icons.storefront, 'チェーン店メニュー', '公式サイトの栄養成分を検索（Sonnet＋Web検索）', _chain),
+                _action(Icons.sports_bar, 'お酒', 'ビール・ハイボール・ワインなどを選んで記録（APIキー不要）', _alcohol),
                 _action(Icons.edit_note, '手入力', '料理名と栄養価を自分で入力',
                     () => _openEditor(items: [MealItem.manual], model: 'manual')),
                 const SizedBox(height: 16),

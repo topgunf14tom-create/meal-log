@@ -98,7 +98,7 @@ jobs:
       - name: Build APK
         run: |
           for i in 1 2 3 4 5; do
-            flutter build apk --release && exit 0
+            flutter build apk --release --build-number=$((GITHUB_RUN_NUMBER + 100)) --build-name=1.0.$GITHUB_RUN_NUMBER && exit 0
             echo "::warning::ビルド失敗（$i 回目）。$((i * 60))秒後に再試行します"
             sleep $((i * 60))
           done

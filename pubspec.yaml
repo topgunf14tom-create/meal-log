@@ -1,0 +1,29 @@
+name: meal_log
+description: 個人用の食事記録アプリ（写真解析・PFC・体重記録）
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  path_provider: ^2.1.4
+  http: ^1.2.2
+  image_picker: ^1.1.2
+  flutter_image_compress: ^2.3.0
+  flutter_secure_storage: ^9.2.2
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

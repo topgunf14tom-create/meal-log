@@ -1,0 +1,21 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+.DS_Store
+
+# プラットフォームフォルダは tool/setup で生成する
+/android/
+/ios/
+
+# 署名鍵
+key.properties
+*.keystore
+*.jks

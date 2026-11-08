@@ -48,19 +48,43 @@ jobs:
 
       - run: flutter pub get
 
+      # Gradle 本体・依存ライブラリを保存して次回から再利用（GitHub のダウンロードが不安定なときの対策）
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper/dists
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.lock') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # Gradle 本体を粘り強く先に取得し、ローカルのファイルから使わせる
+      - name: Prefetch Gradle distribution
+        run: |
+          PROPS=android/gradle/wrapper/gradle-wrapper.properties
+          URL=$(grep '^distributionUrl=' "$PROPS" | cut -d= -f2- | sed 's#\\:#:#g')
+          NAME=$(basename "$URL" .zip)
+          if ls ~/.gradle/wrapper/dists/"$NAME"/*/*.ok >/dev/null 2>&1; then
+            echo "Gradle はキャッシュ済み: $NAME"
+          else
+            curl -fL --retry 15 --retry-all-errors --retry-delay 20 --connect-timeout 30 -o "$RUNNER_TEMP/gradle.zip" "$URL"
+          fi
+          # キャッシュと同じ置き場所になるよう、常にローカルファイルの URL にそろえる
+          sed -i "s#^distributionUrl=.*#distributionUrl=file\\:$RUNNER_TEMP/gradle.zip#" "$PROPS"
+          grep distributionUrl "$PROPS"
+
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
         continue-on-error: true
 
       - run: flutter test
 
-      # Gradle 本体のダウンロードが一時的に失敗する（504 など）ことがあるので最大3回試す
+      # 依存ライブラリのダウンロードが一時的に失敗する（504 など）ことがあるので最大5回試す
       - name: Build APK
         run: |
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5; do
             flutter build apk --release && exit 0
-            echo "::warning::ビルド失敗（$i 回目）。60秒後に再試行します"
-            sleep 60
+            echo "::warning::ビルド失敗（$i 回目）。$((i * 60))秒後に再試行します"
+            sleep $((i * 60))
           done
           exit 1
 

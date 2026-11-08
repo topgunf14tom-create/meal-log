@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../core/strava_archive.dart';
 import 'entities.dart';
 
 /// 端末内 SQLite。データはすべてここに保存し、外部には送らない。
@@ -30,6 +31,25 @@ class AppDb {
       exercise_kcal REAL NOT NULL,
       exercises_json TEXT NOT NULL,
       synced_at TEXT NOT NULL)''';
+
+  /// Strava の書き出しから取り込んだ運動（バックアップの JSON には含めない。zip から取り込み直せるため）
+  static const _stravaTable = '''CREATE TABLE strava_activities(
+      id TEXT PRIMARY KEY,
+      start_ms INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      type_label TEXT NOT NULL,
+      name TEXT NOT NULL,
+      elapsed_s REAL NOT NULL,
+      moving_s REAL NOT NULL,
+      distance_m REAL NOT NULL,
+      elev_gain_m REAL,
+      avg_hr REAL,
+      max_hr INTEGER,
+      kcal REAL,
+      max_speed REAL,
+      has_route INTEGER NOT NULL,
+      bests_json TEXT NOT NULL,
+      detail_json TEXT NOT NULL)''';
 
   static const _inbodyTable = '''CREATE TABLE inbody_results(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,13 +124,15 @@ class AppDb {
     _inbodyTable,
     'CREATE INDEX idx_inbody_date ON inbody_results(date)',
     _activityTable,
+    _stravaTable,
+    'CREATE INDEX idx_strava_start ON strava_activities(start_ms)',
   ];
 
   Future<void> open() async {
     final dir = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dir, 'meal_log.db'),
-      version: 3,
+      version: 4,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         for (final sql in _schema) {
@@ -126,6 +148,10 @@ class AppDb {
           await db.execute("ALTER TABLE weights ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'");
           await db.execute('ALTER TABLE weights ADD COLUMN body_fat_pct REAL');
           await db.execute(_activityTable);
+        }
+        if (oldVersion < 4) {
+          await db.execute(_stravaTable);
+          await db.execute('CREATE INDEX idx_strava_start ON strava_activities(start_ms)');
         }
       },
     );
@@ -347,6 +373,67 @@ class AppDb {
   Future<void> setSetting(String key, String value) async {
     await _db.insert('settings', {'key': key, 'value': value},
         conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  // ---------- Strava ----------
+
+  /// 同じ ID は上書き。件数を返す
+  Future<int> saveStravaActivities(List<Map<String, Object?>> rows) async {
+    await _db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final r in rows) {
+        batch.insert('strava_activities', r, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+    });
+    return rows.length;
+  }
+
+  /// 一覧用（点・スプリットは読まない）。新しい順
+  Future<List<StravaActivity>> stravaActivities({DateTime? from}) async {
+    final rows = await _db.query(
+      'strava_activities',
+      columns: [
+        'id', 'start_ms', 'kind', 'type_label', 'name', 'elapsed_s', 'moving_s', 'distance_m',
+        'elev_gain_m', 'avg_hr', 'max_hr', 'kcal', 'max_speed', 'has_route',
+      ],
+      where: from == null ? null : 'start_ms >= ?',
+      whereArgs: from == null ? null : [from.millisecondsSinceEpoch],
+      orderBy: 'start_ms DESC',
+    );
+    return rows.map((r) => StravaActivity.fromDbMap(r, withDetail: false)).toList();
+  }
+
+  Future<StravaActivity?> stravaActivity(String id) async {
+    final r = await _db.query('strava_activities', where: 'id = ?', whereArgs: [id], limit: 1);
+    return r.isEmpty ? null : StravaActivity.fromDbMap(r.first);
+  }
+
+  /// ベスト記録の一覧用（ランニングのベストだけ読む）
+  Future<List<StravaActivity>> stravaRunsWithBests() async {
+    final rows = await _db.query(
+      'strava_activities',
+      columns: ['id', 'start_ms', 'kind', 'type_label', 'name', 'elapsed_s', 'moving_s', 'distance_m', 'bests_json'],
+      where: "kind = 'running'",
+      orderBy: 'start_ms DESC',
+    );
+    return rows.map((r) => StravaActivity.fromDbMap(r, withDetail: false)).toList();
+  }
+
+  /// 直近1年で記録された最大心拍（心拍ゾーンの基準）
+  Future<int?> stravaMaxHr() async {
+    final since = DateTime.now().subtract(const Duration(days: 365)).millisecondsSinceEpoch;
+    final r = await _db.rawQuery('SELECT MAX(max_hr) AS m FROM strava_activities WHERE start_ms >= ?', [since]);
+    return (r.first['m'] as num?)?.toInt();
+  }
+
+  Future<int> stravaCount() async {
+    final r = await _db.rawQuery('SELECT COUNT(*) AS n FROM strava_activities');
+    return (r.first['n'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> deleteAllStrava() async {
+    await _db.delete('strava_activities');
   }
 
   // ---------- エクスポート / インポート ----------

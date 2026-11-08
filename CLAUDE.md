@@ -35,6 +35,9 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 | グラフ | CustomPaint（自前描画。外部パッケージ依存を減らすため） |
 | 日付 | 自前の日付ヘルパー（lib/core/dates.dart）＋flutter_localizations（ja） |
 | QR読み取り | mobile_scanner（InBody 用紙の QR） |
+| zip 読み取り | archive（Strava の書き出しの取り込み。別 isolate で処理） |
+| 地図 | flutter_map＋latlong2（OpenStreetMap のタイル。運動のルート表示のみ） |
+| 共有 | share_plus（画面の一部を PNG にしてテキストと一緒に OS の共有シートへ） |
 | ヘルスコネクト | androidx.health.connect:connect-client 1.1.0 を MainActivity（Kotlin）から直接呼び、MethodChannel `meal_log/health` で Dart へ。Kotlin の元ファイルは `tool/android/`、setup スクリプトが android/ にコピー |
 
 ---
@@ -82,11 +85,19 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
    - 日付＋体重（kg、小数1桁）入力
    - 折れ線グラフ（7日 / 30日 / 90日切替）
    - 右上「体組成」から体組成の記録へ、走る人のアイコンから運動の記録へ
-4-3. **運動の記録**（ホームの消費カロリーカードの履歴ボタン、体重画面から）
-   - ヘルスコネクトのエクササイズを期間（3か月・1年・すべて）で読み、重なる記録は1回にまとめる
-   - 運動ごとの距離・活動カロリーは、同じアプリが記録した DistanceRecord・ActiveCaloriesBurnedRecord のうち時間が重なる分を合計（無ければ METs で推定し「約」）
-   - 期間の合計（回数・時間・距離・kcal）、月ごとの運動時間の棒グラフ（直近12か月）、月別の一覧
+4-3. **運動の記録**（ホームの消費カロリーカードの履歴ボタン、体重画面から。`lib/features/history/`）
+   - データ元：Strava の書き出しの取り込み（strava_activities）＋ヘルスコネクトのエクササイズ。時間が半分以上重なるものは取り込み側を残す（`workouts.dart`）
+   - ヘルスコネクト分：重なる記録は1回にまとめ、距離・活動カロリーは同じアプリの DistanceRecord・ActiveCaloriesBurnedRecord のうち時間が重なる分を合計（無ければ METs で推定し「約」）
+   - 期間（3か月・1年・すべて）、種目の絞り込み、合計（回数・時間・距離・獲得標高・kcal）、棒グラフ（時間・距離・カロリー・回数・標高 × 週・月・年、直近12区間）、月別の一覧
+   - 取り込んだ運動はタップで詳細：地図上のルート（全画面可）、距離・移動時間・ペース/速度・最高速度・獲得標高・経過時間・カロリー・平均/最大心拍、1kmスプリット、ペース・標高・心拍のグラフ（横軸 km）、心拍ゾーン（取り込んだ記録の直近1年の最大心拍を基準に 60/70/80/90%）、ランのベストエフォート
+   - ベスト記録画面：ランの距離別（400m〜フル）上位3件、年ごと・種目ごとの合計
    - 30日より前は READ_HEALTH_DATA_HISTORY、距離は READ_DISTANCE が必要。未許可なら「許可する」カード
+4-4. **Strava の取り込み**（運動の記録の右上）
+   - strava.com の「アカウントのダウンロード」の zip（activities.csv＋activities/ の GPX・TCX・FIT、.gz 可）、activities.csv 単体、1件分の GPX・TCX・FIT を選べる
+   - ファイル選択は Kotlin の ACTION_OPEN_DOCUMENT（`pickFile`）でキャッシュにコピー。解析は別 isolate、終わったらコピーを消す
+   - CSV の見出しは英語・日本語に対応し、見つからなければ既知の列番号。日時は UTC として読む。値はファイルから計算した値より CSV を優先（距離・移動時間・心拍・カロリー）
+   - 点は最大1500点に間引いて保存。スプリット・ベストは間引く前に計算。同じ ID は上書き
+   - 解析は `lib/core/activity_files.dart`（GPX・TCX は正規表現、FIT は record・session・sport を自前で読む）、`lib/core/track.dart`（距離・移動時間・獲得標高（3m ヒステリシス）・スプリット・ベスト・心拍ゾーン）、`lib/core/strava_archive.dart`
 4-2. **InBody**（体重画面から）
    - 結果用紙の QR（`https://qrcode.inbody.com?IBData=...`）をカメラ・写真・貼り付けで読み取る（mobile_scanner）
    - IBData は固定桁の平文。桁位置は `lib/core/inbody.dart`（InBody270 の実物で照合）。他機種は未対応としてエラー
@@ -95,6 +106,9 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
    - 保存時オプション：体重記録に反映（既定オン）、目標カロリーを推奨エネルギー摂取量にする（既定オフ）
    - 用紙の日付は本体の時計なので、直近3日以内でなければ記録日の既定は今日
    - 履歴（体組成の記録）：ヘルスコネクトの体重・体脂肪率・除脂肪量（InBody アプリなど）と QR の結果を日ごとにまとめ、期間を選んで推移グラフ（体重・体脂肪率・体脂肪量・除脂肪量・骨格筋量）と一覧。同じ日は QR の結果を優先。QR の行は詳細を開ける
+   - QR で取り込んだ日があれば、詳しい項目（点数・BMI・体水分・タンパク質・基礎代謝・内臓脂肪・腹囲・部位別筋肉量/体脂肪量）もグラフにできる
+   - 比較画面：QR の記録2回を選び、体成分・部位別・研究項目の値と変化を並べる（増えると良い/減ると良い項目は緑/赤）
+4-5. **SNS 共有**：InBody 結果、体組成の推移、InBody の比較、運動のまとめ、運動の詳細（地図つき）、ベスト記録の右上に共有ボタン。表示中のカードを PNG にし、要約テキストと一緒に共有シートへ（`lib/widgets/share_capture.dart`）
 5. **設定**
    - 目標カロリー（kcal/日）
    - PFC目標比率（%、合計100になるようバリデーション。初期値 P20 / F25 / C55）
@@ -197,6 +211,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 - **api_usage**：id, timestamp, model, purpose(photo/chain/reanalyze), input_tokens, output_tokens, web_search_requests, cost_usd
 - **weights** に DB version 3 で `source`（manual / health）と `body_fat_pct` を追加。health の行だけ自動取り込みで上書きし、手入力・InBody QR の日は上書きしない
 - **activity_days**（DB version 3 で追加）：date(PK), steps, walk_steps, walk_kcal, exercise_kcal, exercises_json, synced_at
+- **strava_activities**（DB version 4 で追加）：id(PK, Strava のアクティビティID か file:ファイル名), start_ms, kind, type_label, name, elapsed_s, moving_s, distance_m, elev_gain_m?, avg_hr?, max_hr?, kcal?, max_speed?, has_route, bests_json, detail_json（スプリットと間引いた点 [秒, 緯度, 経度, 標高, 心拍, 距離]）。バックアップの JSON には含めない（zip から取り込み直せるため）
 - **inbody_results**（DB version 2 で追加）：id, date, measured_at?, raw(unique, QR文字列), weight_kg, smm_kg, bfm_kg, pbf, score, created_at。詳細表示は raw を解析し直す
 
 ---
@@ -245,7 +260,7 @@ test/
 
 ## 9. 非機能要件・ルール
 - APIキーはソースコード・ログ・Git に絶対に含めない
-- 通信は Claude API のみ。その他の外部送信はしない（ヘルスコネクトは端末内の読み取りのみ）
+- 通信は Claude API と、運動のルート表示の地図タイル（tile.openstreetmap.org、User-Agent にパッケージ名、帰属表示つき）のみ。記録データは外部に送らない（ヘルスコネクトは端末内の読み取りのみ、Strava の取り込みも端末内）。共有はユーザーが共有ボタンを押したときだけ OS の共有シートに渡す
 - オフラインでも記録の閲覧・手入力・体重記録はできること
 - 日本語UI、数値は kcal は整数、g は小数1桁
 - 各サービス層にユニットテストを書く（JSONパース、PFC計算、料金計算、キャッシュ正規化）

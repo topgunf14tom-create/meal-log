@@ -2,7 +2,7 @@ package __PACKAGE__
 
 // tool/setup.sh（setup.ps1）が android/ 生成後にこのファイルで上書きする。
 // ヘルスコネクト（端末内）から体重・体脂肪・歩数・運動を読み取り、Dart 側へ渡す。
-// 読み取りのみで、書き込みや外部送信はしない。
+// 読み取りのみで、書き込みや外部送信はしない。ファイル選択（Strava の書き出し取り込み）もここで扱う。
 
 import android.content.Intent
 import android.os.Bundle
@@ -109,6 +109,10 @@ class MainActivity : FlutterActivity() {
             result.success(text)
             return
         }
+        if (call.method == "pickFile") {
+            pickFile(result)
+            return
+        }
         if (call.method == "openSettings") {
             try {
                 startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
@@ -166,6 +170,56 @@ class MainActivity : FlutterActivity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE) deliverGranted()
+        if (requestCode == PICK_CODE) onFilePicked(resultCode, data)
+    }
+
+    // ---------- ファイル選択（Strava の書き出しの取り込み用） ----------
+    private var pendingPick: MethodChannel.Result? = null
+
+    /** システムのファイル選択画面を開く。選ばれたファイルをアプリのキャッシュにコピーしてパスを返す */
+    private fun pickFile(result: MethodChannel.Result) {
+        pendingPick?.success(null)
+        pendingPick = result
+        try {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, PICK_CODE)
+        } catch (e: Throwable) {
+            pendingPick = null
+            result.error("pick_failed", "${e.javaClass.simpleName}: ${e.message}", null)
+        }
+    }
+
+    private fun onFilePicked(resultCode: Int, data: Intent?) {
+        val r = pendingPick ?: return
+        pendingPick = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            r.success(null)
+            return
+        }
+        var name = "import"
+        try {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) name = c.getString(0) ?: name
+            }
+        } catch (_: Exception) {
+        }
+        val safe = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        Thread {
+            try {
+                val dir = File(cacheDir, "import").apply { mkdirs() }
+                dir.listFiles()?.forEach { it.delete() }
+                val out = File(dir, safe)
+                contentResolver.openInputStream(uri)!!.use { input -> out.outputStream().use { input.copyTo(it, 1 shl 16) } }
+                runOnUiThread { r.success(mapOf("path" to out.absolutePath, "name" to name)) }
+            } catch (e: Throwable) {
+                runOnUiThread { r.error("copy_failed", "${e.javaClass.simpleName}: ${e.message}", null) }
+            }
+        }.start()
     }
 
     /** 権限画面が閉じたあと、許可済みの権限を Dart 側へ返す */
@@ -308,5 +362,6 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL = "meal_log/health"
         private const val REQUEST_CODE = 7301
         private const val CRASH_FILE = "last_crash.txt"
+        private const val PICK_CODE = 7302
     }
 }

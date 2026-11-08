@@ -7,22 +7,55 @@ import '../../core/inbody.dart';
 import '../../data/entities.dart';
 import '../../services/health_service.dart';
 import '../../widgets/inbody_widgets.dart';
+import '../../widgets/share_capture.dart';
 import '../../widgets/weight_chart.dart';
 import '../history/history_common.dart';
+import 'inbody_compare_screen.dart';
 import 'inbody_result_screen.dart';
 import 'inbody_scan_screen.dart';
 
-enum _Metric {
-  weight('体重', 'kg'),
-  pbf('体脂肪率', '%'),
-  bfm('体脂肪量', 'kg'),
-  lean('除脂肪量', 'kg'),
-  smm('骨格筋量', 'kg');
+/// グラフに出せる項目
+class _Metric {
+  const _Metric(this.label, this.unit, this.of, {this.qrOnly = false, this.digits = 1});
 
-  const _Metric(this.label, this.unit);
   final String label;
   final String unit;
+  final double? Function(_BodyDay d) of;
+
+  /// InBody の用紙 QR から取り込んだ日だけ値がある
+  final bool qrOnly;
+  final int digits;
 }
+
+double? _qr(_BodyDay d, double Function(InBodyResult r) f) => d.result == null ? null : f(d.result!);
+
+final _basicMetrics = <_Metric>[
+  _Metric('体重', 'kg', (d) => d.weight),
+  _Metric('体脂肪率', '%', (d) => d.pbf),
+  _Metric('体脂肪量', 'kg', (d) => d.bfm),
+  _Metric('除脂肪量', 'kg', (d) => d.leanOrDerived()),
+  _Metric('骨格筋量', 'kg', (d) => d.smm, qrOnly: true),
+];
+
+final _detailMetrics = <_Metric>[
+  _Metric('InBody点数', '点', (d) => d.score?.toDouble(), qrOnly: true, digits: 0),
+  _Metric('BMI', '', (d) => _qr(d, (r) => r.bmi.value), qrOnly: true),
+  _Metric('体水分量', 'kg', (d) => _qr(d, (r) => r.tbw.value), qrOnly: true),
+  _Metric('タンパク質', 'kg', (d) => _qr(d, (r) => r.protein.value), qrOnly: true),
+  _Metric('基礎代謝量', 'kcal', (d) => _qr(d, (r) => r.bmr.toDouble()), qrOnly: true, digits: 0),
+  _Metric('内臓脂肪レベル', '', (d) => _qr(d, (r) => (r.visceralLevel ?? 0).toDouble()), qrOnly: true, digits: 0),
+  _Metric('腹囲', 'cm', (d) => _qr(d, (r) => r.waistCm), qrOnly: true),
+  _Metric('右腕の筋肉', 'kg', (d) => _qr(d, (r) => r.segmentLean.rightArm), qrOnly: true, digits: 2),
+  _Metric('左腕の筋肉', 'kg', (d) => _qr(d, (r) => r.segmentLean.leftArm), qrOnly: true, digits: 2),
+  _Metric('体幹の筋肉', 'kg', (d) => _qr(d, (r) => r.segmentLean.trunk), qrOnly: true),
+  _Metric('右脚の筋肉', 'kg', (d) => _qr(d, (r) => r.segmentLean.rightLeg), qrOnly: true, digits: 2),
+  _Metric('左脚の筋肉', 'kg', (d) => _qr(d, (r) => r.segmentLean.leftLeg), qrOnly: true, digits: 2),
+  _Metric('右腕の体脂肪', 'kg', (d) => _qr(d, (r) => r.segmentFat.rightArm), qrOnly: true),
+  _Metric('左腕の体脂肪', 'kg', (d) => _qr(d, (r) => r.segmentFat.leftArm), qrOnly: true),
+  _Metric('体幹の体脂肪', 'kg', (d) => _qr(d, (r) => r.segmentFat.trunk), qrOnly: true),
+  _Metric('右脚の体脂肪', 'kg', (d) => _qr(d, (r) => r.segmentFat.rightLeg), qrOnly: true),
+  _Metric('左脚の体脂肪', 'kg', (d) => _qr(d, (r) => r.segmentFat.leftLeg), qrOnly: true),
+];
 
 /// 1日分の体組成（QRで取り込んだ InBody の結果と、ヘルスコネクトの値をまとめたもの）
 class _BodyDay {
@@ -37,6 +70,7 @@ class _BodyDay {
 
   /// QRで取り込んだ結果（あれば詳細を開ける）
   InBodyRecord? record;
+  InBodyResult? result;
   final Set<String> sources = {};
 
   double? get bfm {
@@ -47,14 +81,6 @@ class _BodyDay {
   }
 
   double? leanOrDerived() => lean ?? (weight != null && bfm != null ? weight! - bfm! : null);
-
-  double? value(_Metric m) => switch (m) {
-        _Metric.weight => weight,
-        _Metric.pbf => pbf,
-        _Metric.bfm => bfm,
-        _Metric.lean => leanOrDerived(),
-        _Metric.smm => smm,
-      };
 }
 
 /// 体組成の記録（InBody の用紙 QR ＋ ヘルスコネクトの体重・体脂肪・除脂肪量）
@@ -67,7 +93,8 @@ class InBodyHistoryScreen extends StatefulWidget {
 
 class _InBodyHistoryScreenState extends State<InBodyHistoryScreen> {
   List<_BodyDay>? _days;
-  _Metric _metric = _Metric.weight;
+  _Metric _metric = _basicMetrics.first;
+  final _shareKey = GlobalKey();
   HistoryPeriod _period = HistoryPeriod.year;
   Set<String> _granted = {};
   String? _error;
@@ -122,6 +149,11 @@ class _InBodyHistoryScreenState extends State<InBodyHistoryScreen> {
       d.smm = r.smmKg;
       d.score = r.score;
       d.lean = r.weightKg - r.bfmKg;
+      try {
+        d.result = parseInBodyQr(r.raw);
+      } on InBodyFormatException {
+        d.result = null;
+      }
       d.sources.add('InBody用紙');
     }
 
@@ -165,7 +197,22 @@ class _InBodyHistoryScreenState extends State<InBodyHistoryScreen> {
   Widget build(BuildContext context) {
     final days = _days;
     return Scaffold(
-      appBar: AppBar(title: const Text('体組成の記録')),
+      appBar: AppBar(
+        title: const Text('体組成の記録'),
+        actions: [
+          if ((days?.where((d) => d.record != null).length ?? 0) >= 2)
+            IconButton(
+              tooltip: '2回の測定を比較',
+              icon: const Icon(Icons.compare_arrows),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => InBodyCompareScreen(
+                  records: [for (final d in days!) if (d.record != null) d.record!],
+                ),
+              )),
+            ),
+          ShareButton(onPressed: days == null || days.isEmpty ? null : () => _share(days)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _scan,
         icon: const Icon(Icons.qr_code_scanner),
@@ -177,15 +224,43 @@ class _InBodyHistoryScreenState extends State<InBodyHistoryScreen> {
     );
   }
 
+  List<WeightEntry> _points(List<_BodyDay> days) => days.reversed
+      .where((d) => _metric.of(d) != null)
+      .map((d) => WeightEntry(date: d.date, kg: _metric.of(d)!))
+      .toList();
+
+  void _share(List<_BodyDay> days) {
+    final pts = _points(days);
+    final unit = _metric.unit;
+    final text = pts.isEmpty
+        ? '体組成の記録'
+        : '${_metric.label}：${pts.last.kg.toStringAsFixed(_metric.digits)}$unit'
+            '${pts.length >= 2 ? '（${shortDate(parseYmd(pts.first.date))}から${signed1(pts.last.kg - pts.first.kg)}$unit）' : ''}';
+    shareCapture(context, _shareKey, text: text, fileName: 'body_history');
+  }
+
+  Widget _metricChips(BuildContext context, List<_Metric> metrics, bool hasQr) => Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (final m in metrics)
+            if (!m.qrOnly || hasQr)
+              ChoiceChip(
+                visualDensity: VisualDensity.compact,
+                label: Text(m.label),
+                selected: _metric == m,
+                onSelected: (_) => setState(() => _metric = m),
+              ),
+        ],
+      );
+
   Widget _list(BuildContext context, List<_BodyDay> days) {
     final theme = Theme.of(context);
     final healthOn = s.settings.healthEnabled;
 
     // グラフ用：古い順
-    final points = days.reversed
-        .where((d) => d.value(_metric) != null)
-        .map((d) => WeightEntry(date: d.date, kg: d.value(_metric)!))
-        .toList();
+    final points = _points(days);
+    final hasQr = days.any((d) => d.record != null);
     final from = points.isEmpty ? dayOnly(DateTime.now()) : parseYmd(points.first.date);
     final to = points.length < 2 ? addDays(from, 7) : parseYmd(points.last.date);
 
@@ -208,39 +283,57 @@ class _InBodyHistoryScreenState extends State<InBodyHistoryScreen> {
         if (days.isEmpty)
           const InfoCard(text: 'この期間の記録はありません。')
         else ...[
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SegmentedButton<_Metric>(
-              showSelectedIcon: false,
-              segments: [for (final m in _Metric.values) ButtonSegment(value: m, label: Text(m.label))],
-              selected: {_metric},
-              onSelectionChanged: (sel) => setState(() => _metric = sel.first),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: points.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        _metric == _Metric.smm ? '骨格筋量は InBody の用紙 QR から取り込んだ分だけ表示できます' : 'この項目の記録がありません',
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  : WeightChart(entries: points, from: from, to: to),
-            ),
-          ),
-          if (points.length >= 2)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '${shortDate(parseYmd(points.first.date))}からの変化：'
-                '${signed1(points.last.kg - points.first.kg)} ${_metric.unit}',
-                textAlign: TextAlign.center,
+          _metricChips(context, _basicMetrics, hasQr),
+          if (hasQr)
+            Theme(
+              data: theme.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                title: Text('InBody 用紙の詳しい項目', style: theme.textTheme.bodyMedium),
+                initiallyExpanded: _detailMetrics.contains(_metric),
+                children: [_metricChips(context, _detailMetrics, hasQr)],
               ),
             ),
+          const SizedBox(height: 8),
+          ShareFrame(
+            captureKey: _shareKey,
+            child: Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${_metric.label}${_metric.unit.isEmpty ? '' : '（${_metric.unit}）'}',
+                        style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    if (points.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _metric.qrOnly ? 'この項目は InBody の用紙 QR から取り込んだ分だけ表示できます' : 'この項目の記録がありません',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else
+                      WeightChart(entries: points, from: from, to: to),
+                    if (points.length >= 2)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Center(
+                          child: Text(
+                            '最新 ${points.last.kg.toStringAsFixed(_metric.digits)}${_metric.unit}　'
+                            '${shortDate(parseYmd(points.first.date))}からの変化：'
+                            '${signed1(points.last.kg - points.first.kg)}${_metric.unit}',
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           Text('測定結果', style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),

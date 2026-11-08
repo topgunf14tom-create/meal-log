@@ -5,6 +5,7 @@ import '../../core/dates.dart';
 import '../../core/inbody.dart';
 import '../../data/entities.dart';
 import '../../widgets/inbody_widgets.dart';
+import '../../widgets/share_capture.dart';
 
 /// InBody の結果表示。[record] が null のときは読み取り直後の確認画面（保存ボタンつき）
 class InBodyResultScreen extends StatefulWidget {
@@ -28,8 +29,22 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
   InBodyRecord? _alreadySaved;
   int? _currentGoalKcal;
 
+  final _shareKey = GlobalKey();
+
   AppServices get s => AppServices.I;
   InBodyResult get r => widget.result;
+
+  void _share() {
+    final m = r.measuredAt;
+    final text = [
+      'InBody${m == null ? '' : '（${m.year}/${m.month}/${m.day}）'}',
+      '体重 ${r.weight.value.toStringAsFixed(1)}kg',
+      '骨格筋量 ${r.smm.value.toStringAsFixed(1)}kg',
+      '体脂肪率 ${r.pbf.value.toStringAsFixed(1)}%',
+      'InBody点数 ${r.score}点',
+    ].join('・');
+    shareCapture(context, _shareKey, text: text, fileName: 'inbody_result');
+  }
 
   @override
   void initState() {
@@ -157,6 +172,7 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
       appBar: AppBar(
         title: Text(widget.isPreview ? 'InBody 読み取り結果' : 'InBody ${jpDate(_date)}'),
         actions: [
+          ShareButton(onPressed: _share),
           if (!widget.isPreview)
             IconButton(tooltip: '削除', icon: const Icon(Icons.delete_outline), onPressed: _delete),
         ],
@@ -165,51 +181,6 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          // 見出し：点数と基本情報
-          Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 84,
-                    height: 84,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: theme.colorScheme.primary, width: 5),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('${r.score}',
-                            style: theme.textTheme.headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-                        Text('/100点', style: theme.textTheme.bodySmall),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('InBody点数', style: theme.textTheme.titleSmall),
-                        const SizedBox(height: 6),
-                        Text('身長 ${r.heightCm.toStringAsFixed(1)} cm'
-                            '${r.age == null ? '' : '・${r.age}歳'}・${r.sexLabel}'),
-                        if (r.measuredAt != null)
-                          Text('測定 ${_dateTimeText(r.measuredAt!)}（InBody${r.model}）',
-                              style: theme.textTheme.bodySmall),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
           if (widget.isPreview && _alreadySaved != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -219,123 +190,176 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
               ),
             ),
 
-          // 主要3項目
-          Row(
-            children: [
-              Expanded(
-                child: InBodyStatTile(
-                  label: '体重',
-                  value: r.weight.value.toStringAsFixed(1),
-                  unit: 'kg',
-                  level: r.weight.level,
-                  diff: prev == null ? null : r.weight.value - prev.weightKg,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: InBodyStatTile(
-                  label: '骨格筋量',
-                  value: r.smm.value.toStringAsFixed(1),
-                  unit: 'kg',
-                  level: r.smm.level,
-                  diff: prev == null ? null : r.smm.value - prev.smmKg,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: InBodyStatTile(
-                  label: '体脂肪率',
-                  value: r.pbf.value.toStringAsFixed(1),
-                  unit: '%',
-                  level: r.pbf.level,
-                  diff: prev == null ? null : r.pbf.value - prev.pbf,
-                ),
-              ),
-            ],
-          ),
-          if (prev != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text('前回：${jpDate(parseYmd(prev.date))}',
-                  textAlign: TextAlign.right, style: theme.textTheme.bodySmall),
-            ),
-          const SizedBox(height: 12),
-
-          InBodySection(
-            title: '体成分分析',
-            subtitle: 'Body Composition',
+          ShareFrame(
+            captureKey: _shareKey,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                InBodyValueRow(
-                    label: '体水分量', value: r.tbw.value.toStringAsFixed(1), unit: 'kg',
-                    range: _range(r.tbw, 1), level: r.tbw.level),
-                InBodyValueRow(
-                    label: 'タンパク質', value: r.protein.value.toStringAsFixed(1), unit: 'kg',
-                    range: _range(r.protein, 1), level: r.protein.level),
-                InBodyValueRow(
-                    label: 'ミネラル', value: r.mineral.value.toStringAsFixed(2), unit: 'kg',
-                    range: _range(r.mineral, 2), level: r.mineral.level),
-                InBodyValueRow(
-                    label: '体脂肪量', value: r.bfm.value.toStringAsFixed(1), unit: 'kg',
-                    range: _range(r.bfm, 1), level: r.bfm.level),
-                const Divider(),
-                InBodyValueRow(label: '除脂肪量', value: r.ffm.toStringAsFixed(1), unit: 'kg'),
-                InBodyValueRow(
-                    label: '体重', value: r.weight.value.toStringAsFixed(1), unit: 'kg',
-                    range: _range(r.weight, 1), level: r.weight.level, bold: true),
-              ],
-            ),
-          ),
+                // 見出し：点数と基本情報
+                Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 84,
+                          height: 84,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: theme.colorScheme.primary, width: 5),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('${r.score}',
+                                  style: theme.textTheme.headlineMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                              Text('/100点', style: theme.textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('InBody点数', style: theme.textTheme.titleSmall),
+                              const SizedBox(height: 6),
+                              Text('身長 ${r.heightCm.toStringAsFixed(1)} cm'
+                                  '${r.age == null ? '' : '・${r.age}歳'}・${r.sexLabel}'),
+                              if (r.measuredAt != null)
+                                Text('測定 ${_dateTimeText(r.measuredAt!)}（InBody${r.model}）',
+                                    style: theme.textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
-          InBodySection(
-            title: '筋肉・脂肪分析',
-            subtitle: '標準＝100%',
-            child: Column(
-              children: [
-                InBodyRangeBar(
-                  label: '体重',
-                  valueText: '${r.weight.value.toStringAsFixed(1)}kg',
-                  position: r.weightPct,
-                  min: 55, max: 205, normalLow: 85, normalHigh: 115,
-                  ticks: const [70, 100, 130, 160, 190],
+                // 主要3項目
+                Row(
+                  children: [
+                    Expanded(
+                      child: InBodyStatTile(
+                        label: '体重',
+                        value: r.weight.value.toStringAsFixed(1),
+                        unit: 'kg',
+                        level: r.weight.level,
+                        diff: prev == null ? null : r.weight.value - prev.weightKg,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InBodyStatTile(
+                        label: '骨格筋量',
+                        value: r.smm.value.toStringAsFixed(1),
+                        unit: 'kg',
+                        level: r.smm.level,
+                        diff: prev == null ? null : r.smm.value - prev.smmKg,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InBodyStatTile(
+                        label: '体脂肪率',
+                        value: r.pbf.value.toStringAsFixed(1),
+                        unit: '%',
+                        level: r.pbf.level,
+                        diff: prev == null ? null : r.pbf.value - prev.pbf,
+                      ),
+                    ),
+                  ],
                 ),
-                InBodyRangeBar(
-                  label: '骨格筋量',
-                  valueText: '${r.smm.value.toStringAsFixed(1)}kg',
-                  position: r.smmPct,
-                  min: 70, max: 170, normalLow: 90, normalHigh: 110,
-                  ticks: const [80, 100, 120, 140, 160],
-                ),
-                InBodyRangeBar(
-                  label: '体脂肪量',
-                  valueText: '${r.bfm.value.toStringAsFixed(1)}kg',
-                  position: r.bfmPct,
-                  min: 40, max: 520, normalLow: 80, normalHigh: 160,
-                  ticks: const [100, 220, 340, 460],
-                ),
-              ],
-            ),
-          ),
+                if (prev != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('前回：${jpDate(parseYmd(prev.date))}',
+                        textAlign: TextAlign.right, style: theme.textTheme.bodySmall),
+                  ),
+                const SizedBox(height: 12),
 
-          InBodySection(
-            title: '肥満分析',
-            child: Column(
-              children: [
-                InBodyRangeBar(
-                  label: 'BMI',
-                  valueText: r.bmi.value.toStringAsFixed(1),
-                  position: r.bmi.value,
-                  min: 10, max: 55,
-                  normalLow: r.bmi.low ?? 18.5, normalHigh: r.bmi.high ?? 25,
-                  ticks: const [15, 25, 35, 45],
+                InBodySection(
+                  title: '体成分分析',
+                  subtitle: 'Body Composition',
+                  child: Column(
+                    children: [
+                      InBodyValueRow(
+                          label: '体水分量', value: r.tbw.value.toStringAsFixed(1), unit: 'kg',
+                          range: _range(r.tbw, 1), level: r.tbw.level),
+                      InBodyValueRow(
+                          label: 'タンパク質', value: r.protein.value.toStringAsFixed(1), unit: 'kg',
+                          range: _range(r.protein, 1), level: r.protein.level),
+                      InBodyValueRow(
+                          label: 'ミネラル', value: r.mineral.value.toStringAsFixed(2), unit: 'kg',
+                          range: _range(r.mineral, 2), level: r.mineral.level),
+                      InBodyValueRow(
+                          label: '体脂肪量', value: r.bfm.value.toStringAsFixed(1), unit: 'kg',
+                          range: _range(r.bfm, 1), level: r.bfm.level),
+                      const Divider(),
+                      InBodyValueRow(label: '除脂肪量', value: r.ffm.toStringAsFixed(1), unit: 'kg'),
+                      InBodyValueRow(
+                          label: '体重', value: r.weight.value.toStringAsFixed(1), unit: 'kg',
+                          range: _range(r.weight, 1), level: r.weight.level, bold: true),
+                    ],
+                  ),
                 ),
-                InBodyRangeBar(
-                  label: '体脂肪率',
-                  valueText: '${r.pbf.value.toStringAsFixed(1)}%',
-                  position: r.pbf.value,
-                  min: isMale ? 0 : 8, max: isMale ? 50 : 58,
-                  normalLow: r.pbf.low ?? (isMale ? 10 : 18), normalHigh: r.pbf.high ?? (isMale ? 20 : 28),
-                  ticks: isMale ? const [10, 20, 30, 40] : const [18, 28, 38, 48],
+
+                InBodySection(
+                  title: '筋肉・脂肪分析',
+                  subtitle: '標準＝100%',
+                  child: Column(
+                    children: [
+                      InBodyRangeBar(
+                        label: '体重',
+                        valueText: '${r.weight.value.toStringAsFixed(1)}kg',
+                        position: r.weightPct,
+                        min: 55, max: 205, normalLow: 85, normalHigh: 115,
+                        ticks: const [70, 100, 130, 160, 190],
+                      ),
+                      InBodyRangeBar(
+                        label: '骨格筋量',
+                        valueText: '${r.smm.value.toStringAsFixed(1)}kg',
+                        position: r.smmPct,
+                        min: 70, max: 170, normalLow: 90, normalHigh: 110,
+                        ticks: const [80, 100, 120, 140, 160],
+                      ),
+                      InBodyRangeBar(
+                        label: '体脂肪量',
+                        valueText: '${r.bfm.value.toStringAsFixed(1)}kg',
+                        position: r.bfmPct,
+                        min: 40, max: 520, normalLow: 80, normalHigh: 160,
+                        ticks: const [100, 220, 340, 460],
+                      ),
+                    ],
+                  ),
+                ),
+
+                InBodySection(
+                  title: '肥満分析',
+                  child: Column(
+                    children: [
+                      InBodyRangeBar(
+                        label: 'BMI',
+                        valueText: r.bmi.value.toStringAsFixed(1),
+                        position: r.bmi.value,
+                        min: 10, max: 55,
+                        normalLow: r.bmi.low ?? 18.5, normalHigh: r.bmi.high ?? 25,
+                        ticks: const [15, 25, 35, 45],
+                      ),
+                      InBodyRangeBar(
+                        label: '体脂肪率',
+                        valueText: '${r.pbf.value.toStringAsFixed(1)}%',
+                        position: r.pbf.value,
+                        min: isMale ? 0 : 8, max: isMale ? 50 : 58,
+                        normalLow: r.pbf.low ?? (isMale ? 10 : 18), normalHigh: r.pbf.high ?? (isMale ? 20 : 28),
+                        ticks: isMale ? const [10, 20, 30, 40] : const [18, 28, 38, 48],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

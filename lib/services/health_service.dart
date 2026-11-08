@@ -55,7 +55,7 @@ class HealthService {
   static const _ch = MethodChannel('meal_log/health');
 
   /// 必要な権限のキー（Kotlin 側と同じ）
-  static const allKeys = ['weight', 'bodyFat', 'leanMass', 'height', 'steps', 'exercise', 'activeKcal'];
+  static const allKeys = ['weight', 'bodyFat', 'leanMass', 'height', 'steps', 'exercise', 'activeKcal', 'distance', 'history'];
 
   static const keyLabels = {
     'weight': '体重',
@@ -65,6 +65,8 @@ class HealthService {
     'steps': '歩数',
     'exercise': 'エクササイズ',
     'activeKcal': '活動カロリー',
+    'distance': '距離',
+    'history': '過去のデータ',
   };
 
   bool get _supported => Platform.isAndroid;
@@ -140,10 +142,12 @@ class HealthService {
     );
   }
 
-  Future<List<ExerciseSession>> readSessions(DateTime from, DateTime to) async {
+  /// [metrics] が true なら運動ごとの距離・活動カロリーも読む（履歴画面用）
+  Future<List<ExerciseSession>> readSessions(DateTime from, DateTime to, {bool metrics = false}) async {
     final list = await _ch.invokeListMethod<Object?>('readSessions', {
       'start': from.millisecondsSinceEpoch,
       'end': to.millisecondsSinceEpoch,
+      'metrics': metrics,
     });
     return (list ?? const []).whereType<Map>().map((m) {
       return ExerciseSession(
@@ -152,6 +156,8 @@ class HealthService {
         kind: ExerciseKind.fromKey(m['type']?.toString()),
         title: m['title']?.toString(),
         origin: m['origin']?.toString() ?? '',
+        distanceM: (m['distanceM'] as num?)?.toDouble(),
+        kcal: (m['kcal'] as num?)?.toDouble(),
       );
     }).toList();
   }

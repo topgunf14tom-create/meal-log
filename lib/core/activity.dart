@@ -59,6 +59,8 @@ class ExerciseSession {
     required this.kind,
     this.title,
     required this.origin,
+    this.distanceM,
+    this.kcal,
   });
 
   final DateTime start;
@@ -69,6 +71,10 @@ class ExerciseSession {
   /// 記録したアプリのパッケージ名
   final String origin;
 
+  /// 距離（m）・活動カロリー（kcal）。履歴画面で読んだときだけ入る
+  final double? distanceM;
+  final double? kcal;
+
   Duration get duration => end.difference(start);
 
   ExerciseSession clip(DateTime from, DateTime to) => ExerciseSession(
@@ -77,6 +83,8 @@ class ExerciseSession {
         kind: kind,
         title: title,
         origin: origin,
+        distanceM: distanceM,
+        kcal: kcal,
       );
 }
 

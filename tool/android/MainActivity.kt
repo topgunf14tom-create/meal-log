@@ -12,6 +12,7 @@ import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.BodyFatRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeightRecord
 import androidx.health.connect.client.records.LeanBodyMassRecord
@@ -21,6 +22,7 @@ import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import androidx.health.connect.client.records.metadata.DataOrigin
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -45,6 +47,9 @@ class MainActivity : FlutterActivity() {
         "steps" to HealthPermission.getReadPermission(StepsRecord::class),
         "exercise" to HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         "activeKcal" to HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+        "distance" to HealthPermission.getReadPermission(DistanceRecord::class),
+        // 30日より前のデータを読む権限（対応していない端末では許可されないだけ）
+        "history" to "android.permission.health.READ_HEALTH_DATA_HISTORY",
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -192,13 +197,14 @@ class MainActivity : FlutterActivity() {
         client: HealthConnectClient,
         type: KClass<T>,
         filter: TimeRangeFilter,
+        origins: Set<DataOrigin> = emptySet(),
     ): List<T> {
         val out = mutableListOf<T>()
         var token: String? = null
         try {
             do {
                 val resp = client.readRecords(
-                    ReadRecordsRequest(recordType = type, timeRangeFilter = filter, pageToken = token)
+                    ReadRecordsRequest(recordType = type, timeRangeFilter = filter, dataOriginFilter = origins, pageToken = token)
                 )
                 out.addAll(resp.records)
                 token = resp.pageToken
@@ -228,13 +234,34 @@ class MainActivity : FlutterActivity() {
     }
 
     private suspend fun readSessions(client: HealthConnectClient, call: MethodCall): List<Map<String, Any?>> {
-        return readAll(client, ExerciseSessionRecord::class, range(call)).map {
+        val f = range(call)
+        val sessions = readAll(client, ExerciseSessionRecord::class, f)
+        // 履歴画面用：運動ごとの距離・活動カロリー（同じアプリが記録した、時間の重なる分を合計）
+        val withMetrics = call.argument<Boolean>("metrics") == true && sessions.isNotEmpty()
+        val origins = sessions.map { it.metadata.dataOrigin }.toSet()
+        val distances = if (withMetrics) readAll(client, DistanceRecord::class, f, origins) else emptyList()
+        val calories = if (withMetrics) readAll(client, ActiveCaloriesBurnedRecord::class, f, origins) else emptyList()
+        return sessions.map { s ->
+            val pkg = s.metadata.dataOrigin.packageName
+            fun share(start: Instant, end: Instant): Double {
+                val total = end.toEpochMilli() - start.toEpochMilli()
+                val from = maxOf(start.toEpochMilli(), s.startTime.toEpochMilli())
+                val to = minOf(end.toEpochMilli(), s.endTime.toEpochMilli())
+                if (to <= from) return 0.0
+                return if (total <= 0) 1.0 else (to - from).toDouble() / total
+            }
+            val dist = distances.filter { it.metadata.dataOrigin.packageName == pkg }
+                .sumOf { it.distance.inMeters * share(it.startTime, it.endTime) }
+            val kcal = calories.filter { it.metadata.dataOrigin.packageName == pkg }
+                .sumOf { it.energy.inKilocalories * share(it.startTime, it.endTime) }
             mapOf(
-                "start" to it.startTime.toEpochMilli(),
-                "end" to it.endTime.toEpochMilli(),
-                "type" to exerciseKey(it.exerciseType),
-                "title" to it.title,
-                "origin" to it.metadata.dataOrigin.packageName,
+                "start" to s.startTime.toEpochMilli(),
+                "end" to s.endTime.toEpochMilli(),
+                "type" to exerciseKey(s.exerciseType),
+                "title" to s.title,
+                "origin" to pkg,
+                "distanceM" to (if (withMetrics && dist > 0) dist else null),
+                "kcal" to (if (withMetrics && kcal > 0) kcal else null),
             )
         }
     }

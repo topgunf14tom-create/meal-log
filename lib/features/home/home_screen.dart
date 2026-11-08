@@ -16,6 +16,7 @@ import '../../widgets/activity_card.dart';
 import '../../widgets/macro_widgets.dart';
 import '../record/record_screen.dart';
 import '../result_edit/result_edit_screen.dart';
+import '../history/exercise_history_screen.dart';
 import '../settings/health_connect.dart';
 import '../settings/settings_screen.dart';
 import '../weight/weight_screen.dart';
@@ -223,7 +224,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 12),
                   if (healthOn) ...[
-                    ActivityCard(activity: _activity, onRefresh: () => _sync(force: true)),
+                    ActivityCard(
+                      activity: _activity,
+                      onRefresh: () => _sync(force: true),
+                      onHistory: () => Navigator.of(context)
+                          .push(MaterialPageRoute(builder: (_) => const ExerciseHistoryScreen())),
+                    ),
                     const SizedBox(height: 12),
                   ],
                   if (showPrompt) ...[

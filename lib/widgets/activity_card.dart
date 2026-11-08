@@ -6,12 +6,17 @@ import '../data/entities.dart';
 
 /// ホームの「消費カロリー」カード（歩数＋運動）
 class ActivityCard extends StatelessWidget {
-  const ActivityCard({super.key, required this.activity, required this.onRefresh});
+  const ActivityCard({super.key, required this.activity, required this.onRefresh, this.onHistory});
 
   final ActivityDay? activity;
   final VoidCallback onRefresh;
 
+  /// 運動の履歴を開く
+  final VoidCallback? onHistory;
+
   static String _hm(DateTime t) => '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
+
+  static IconData iconFor(ExerciseKind k) => _icon(k);
 
   static IconData _icon(ExerciseKind k) => switch (k) {
         ExerciseKind.running => Icons.directions_run,
@@ -40,6 +45,13 @@ class ActivityCard extends StatelessWidget {
                 Text('消費カロリー', style: theme.textTheme.labelLarge),
                 const Spacer(),
                 if (a != null) Text('${kcal0(a.totalKcal)} kcal', style: theme.textTheme.titleMedium),
+                if (onHistory != null)
+                  IconButton(
+                    tooltip: '運動の記録',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.history, size: 20),
+                    onPressed: onHistory,
+                  ),
                 IconButton(
                   tooltip: 'ヘルスコネクトから更新',
                   visualDensity: VisualDensity.compact,

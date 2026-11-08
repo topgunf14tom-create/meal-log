@@ -4,6 +4,7 @@ import '../../app_services.dart';
 import '../../core/dates.dart';
 import '../../data/entities.dart';
 import '../../widgets/weight_chart.dart';
+import '../history/exercise_history_screen.dart';
 import '../inbody/inbody_history_screen.dart';
 
 class WeightScreen extends StatefulWidget {
@@ -84,10 +85,16 @@ class _WeightScreenState extends State<WeightScreen> {
       appBar: AppBar(
         title: const Text('体重'),
         actions: [
+          IconButton(
+            tooltip: '運動の記録',
+            icon: const Icon(Icons.directions_run),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const ExerciseHistoryScreen())),
+          ),
           TextButton.icon(
             onPressed: _openInBody,
-            icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('InBody'),
+            icon: const Icon(Icons.accessibility_new),
+            label: const Text('体組成'),
           ),
         ],
       ),

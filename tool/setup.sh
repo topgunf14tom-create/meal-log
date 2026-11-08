@@ -32,7 +32,7 @@ perl -pi -e 's/android:label="meal_log"/android:label="食事記録"/' "$MANIFES
 
 # ---------- ヘルスコネクト（体重・体脂肪・歩数・運動の読み取り） ----------
 # 読み取り権限
-for perm in READ_WEIGHT READ_BODY_FAT READ_LEAN_BODY_MASS READ_HEIGHT READ_STEPS READ_EXERCISE READ_ACTIVE_CALORIES_BURNED; do
+for perm in READ_WEIGHT READ_BODY_FAT READ_LEAN_BODY_MASS READ_HEIGHT READ_STEPS READ_EXERCISE READ_ACTIVE_CALORIES_BURNED READ_DISTANCE READ_HEALTH_DATA_HISTORY; do
   if ! grep -q "android.permission.health.$perm\"" "$MANIFEST"; then
     perl -0pi -e "s#(\\s*<application)#\\n    <uses-permission android:name=\"android.permission.health.$perm\"/>\$1#" "$MANIFEST"
   fi

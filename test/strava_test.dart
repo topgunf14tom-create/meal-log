@@ -10,7 +10,7 @@ import 'package:meal_log/core/track.dart';
 List<TrackPoint> straightRun({int n = 600, double stepM = 3.5, int secPerPoint = 1, int? hr}) {
   final start = DateTime.utc(2026, 11, 1, 22);
   const lat = 35.0;
-  final degPerM = 1 / (111320 * 0.8191520443); // cos(35°)
+  const degPerM = 1 / (111320 * 0.8191520443); // cos(35°)
   return [
     for (var i = 0; i < n; i++)
       TrackPoint(
@@ -114,7 +114,7 @@ void main() {
 
     test('獲得標高（3mより小さいぶれは数えない）', () {
       final start = DateTime.utc(2026);
-      final eles = [10.0, 11, 10, 12, 15, 14, 20, 19, 25];
+      final eles = <double>[10, 11, 10, 12, 15, 14, 20, 19, 25];
       final pts = [
         for (var i = 0; i < eles.length; i++) TrackPoint(time: start.add(Duration(seconds: i)), ele: eles[i]),
       ];

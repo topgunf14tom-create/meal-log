@@ -274,7 +274,8 @@ test/
 ## 12. 実装状況
 - ステップ1〜7を一通り実装済み。ビルドは `tool/setup.sh`（Windowsは `tool/setup.ps1`）で android/ を生成してから行う
 - android/・ios/ はリポジトリに含めず、setup スクリプトで生成・設定追記する（INTERNET権限、https の queries、minSdk 26、iOSの利用目的文言）
-- APK は `.github/workflows/build-apk.yml` で自動ビルド。署名鍵は Secret `DEBUG_KEYSTORE_B64` から復元
+- APK は `.github/workflows/build-apk.yml` で自動ビルド。署名鍵は Secret `DEBUG_KEYSTORE_B64`（パスワード android）を android/app/ci.keystore に置き、build.gradle.kts の release を明示的にその鍵で署名する。`~/.android/debug.keystore` に置くだけでは使われずビルドごとに鍵が変わっていた（2026-11-08 修正）。公開前に apksigner で署名の一致を検証
+- バージョン番号はビルドごとに増やす（versionCode = 実行番号＋100）
 - エクスポート/インポートはクリップボード経由の JSON（写真は含まない）
 - ヘルスコネクト連携（7.1）を実装。setup スクリプトがヘルスコネクトの権限・queries・権限説明画面（PermissionsRationaleActivity と activity-alias）・依存ライブラリを追記し、MainActivity を `tool/android/MainActivity.kt` で置き換える
 - TODO：バックグラウンドでの定期取り込み（READ_HEALTH_DATA_IN_BACKGROUND）、30日より前の履歴（READ_HEALTH_DATA_HISTORY）は未対応

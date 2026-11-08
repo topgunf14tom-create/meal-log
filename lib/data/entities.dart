@@ -240,3 +240,59 @@ class UsageSummary {
   final int webSearches;
   final double usd;
 }
+
+/// 保存した InBody の結果。詳細は [raw]（QR の文字列）を解析し直して表示する
+class InBodyRecord {
+  const InBodyRecord({
+    this.id,
+    required this.date,
+    this.measuredAt,
+    required this.raw,
+    required this.weightKg,
+    required this.smmKg,
+    required this.bfmKg,
+    required this.pbf,
+    required this.score,
+    required this.createdAt,
+  });
+
+  final int? id;
+
+  /// 記録日 yyyy-MM-dd
+  final String date;
+
+  /// 用紙に印字された測定日時（InBody 本体の時計）
+  final DateTime? measuredAt;
+  final String raw;
+  final double weightKg;
+  final double smmKg;
+  final double bfmKg;
+  final double pbf;
+  final int score;
+  final DateTime createdAt;
+
+  Map<String, Object?> toDbMap() => {
+        'date': date,
+        'measured_at': measuredAt?.toIso8601String(),
+        'raw': raw,
+        'weight_kg': weightKg,
+        'smm_kg': smmKg,
+        'bfm_kg': bfmKg,
+        'pbf': pbf,
+        'score': score,
+        'created_at': createdAt.toIso8601String(),
+      };
+
+  factory InBodyRecord.fromDbMap(Map<String, Object?> m) => InBodyRecord(
+        id: m['id'] as int?,
+        date: m['date'] as String? ?? '',
+        measuredAt: DateTime.tryParse(m['measured_at'] as String? ?? ''),
+        raw: m['raw'] as String? ?? '',
+        weightKg: toDouble(m['weight_kg']),
+        smmKg: toDouble(m['smm_kg']),
+        bfmKg: toDouble(m['bfm_kg']),
+        pbf: toDouble(m['pbf']),
+        score: (m['score'] as num?)?.toInt() ?? 0,
+        createdAt: DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
+      );
+}

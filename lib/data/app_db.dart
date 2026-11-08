@@ -18,7 +18,20 @@ class AppDb {
     'chain_menu_cache',
     'api_usage',
     'settings',
+    'inbody_results',
   ];
+
+  static const _inbodyTable = '''CREATE TABLE inbody_results(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      measured_at TEXT,
+      raw TEXT NOT NULL UNIQUE,
+      weight_kg REAL NOT NULL,
+      smm_kg REAL NOT NULL,
+      bfm_kg REAL NOT NULL,
+      pbf REAL NOT NULL,
+      score INTEGER NOT NULL,
+      created_at TEXT NOT NULL)''';
 
   static const _schema = [
     '''CREATE TABLE meals(
@@ -76,17 +89,25 @@ class AppDb {
     '''CREATE TABLE settings(
       key TEXT PRIMARY KEY,
       value TEXT)''',
+    _inbodyTable,
+    'CREATE INDEX idx_inbody_date ON inbody_results(date)',
   ];
 
   Future<void> open() async {
     final dir = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dir, 'meal_log.db'),
-      version: 1,
+      version: 2,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         for (final sql in _schema) {
           await db.execute(sql);
+        }
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(_inbodyTable);
+          await db.execute('CREATE INDEX idx_inbody_date ON inbody_results(date)');
         }
       },
     );
@@ -157,6 +178,36 @@ class AppDb {
   Future<List<WeightEntry>> weightsSince(String date) async {
     final rows = await _db.query('weights', where: 'date >= ?', whereArgs: [date], orderBy: 'date ASC');
     return rows.map(WeightEntry.fromDbMap).toList();
+  }
+
+  // ---------- InBody ----------
+
+  /// 同じ QR は1件だけ（再度読み取ったら日付などを上書き）。保存した id を返す
+  Future<int> saveInBody(InBodyRecord rec) async {
+    return _db.transaction((txn) async {
+      final existing = await txn.query('inbody_results', columns: ['id'], where: 'raw = ?', whereArgs: [rec.raw]);
+      if (existing.isNotEmpty) {
+        final id = existing.first['id'] as int;
+        await txn.update('inbody_results', rec.toDbMap(), where: 'id = ?', whereArgs: [id]);
+        return id;
+      }
+      return txn.insert('inbody_results', rec.toDbMap());
+    });
+  }
+
+  Future<InBodyRecord?> findInBodyByRaw(String raw) async {
+    final r = await _db.query('inbody_results', where: 'raw = ?', whereArgs: [raw], limit: 1);
+    return r.isEmpty ? null : InBodyRecord.fromDbMap(r.first);
+  }
+
+  /// 新しい順
+  Future<List<InBodyRecord>> inbodyResults() async {
+    final rows = await _db.query('inbody_results', orderBy: 'date DESC, measured_at DESC, id DESC');
+    return rows.map(InBodyRecord.fromDbMap).toList();
+  }
+
+  Future<void> deleteInBody(int id) async {
+    await _db.delete('inbody_results', where: 'id = ?', whereArgs: [id]);
   }
 
   // ---------- チェーン店キャッシュ ----------

@@ -76,6 +76,7 @@ flutter build apk --release
    - **チェーン店メニュー**：店名とメニュー名を入力すると、公式サイトの栄養成分を検索。公式データは端末に保存され、次回からは無料
    - **手入力**：自分で入力
 4. 右上のアイコンから **体重**（記録とグラフ）と **設定**（目標・APIキー・モデル・画像圧縮・今月の利用料・バックアップ）を開けます。
+5. **InBody**：体重画面の右上「InBody」→「QRを読み取る」で、結果用紙の右下の QR コードを読み取ります（カメラ・写真・貼り付け）。InBody アプリに近い形で結果を表示し、保存すると体重記録にも反映できます。推奨エネルギー摂取量を目標カロリーにすることもできます。対応機種は InBody270 です。
 
 **バックアップ**：設定 → データ → エクスポートで、全記録を JSON としてクリップボードにコピーできます。機種変更や再インストールの前にメモアプリ等へ貼って保管してください（写真は含まれません）。
 
@@ -90,7 +91,7 @@ lib/
   core/                   モデルID、料金、PFC計算、日付など
   data/                   SQLite（app_db.dart）、設定、データ型
   services/               Claude API、画像圧縮、解析・チェーン店検索
-  features/               画面（home / record / result_edit / weight / settings / onboarding）
+  features/               画面（home / record / result_edit / weight / inbody / settings / onboarding）
   widgets/                PFCバー・円グラフ、体重グラフ、目標フォーム
 test/                     JSON解析・PFC計算・料金計算・キー正規化のテスト
 tool/setup.sh, setup.ps1  android/ の生成と設定追記

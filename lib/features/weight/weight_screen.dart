@@ -4,6 +4,7 @@ import '../../app_services.dart';
 import '../../core/dates.dart';
 import '../../data/entities.dart';
 import '../../widgets/weight_chart.dart';
+import '../inbody/inbody_history_screen.dart';
 
 class WeightScreen extends StatefulWidget {
   const WeightScreen({super.key});
@@ -61,6 +62,11 @@ class _WeightScreenState extends State<WeightScreen> {
     await _load();
   }
 
+  Future<void> _openInBody() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InBodyHistoryScreen()));
+    await _load();
+  }
+
   Future<void> _delete(WeightEntry e) async {
     await s.db.deleteWeight(e.date);
     await _load();
@@ -75,7 +81,16 @@ class _WeightScreenState extends State<WeightScreen> {
     final last = _all.isEmpty ? null : _all.last;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('体重')),
+      appBar: AppBar(
+        title: const Text('体重'),
+        actions: [
+          TextButton.icon(
+            onPressed: _openInBody,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Text('InBody'),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

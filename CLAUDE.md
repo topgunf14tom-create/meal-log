@@ -33,6 +33,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 | APIキー保存 | flutter_secure_storage |
 | グラフ | CustomPaint（自前描画。外部パッケージ依存を減らすため） |
 | 日付 | 自前の日付ヘルパー（lib/core/dates.dart）＋flutter_localizations（ja） |
+| QR読み取り | mobile_scanner（InBody 用紙の QR） |
 
 ---
 
@@ -72,6 +73,15 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 4. **体重**
    - 日付＋体重（kg、小数1桁）入力
    - 折れ線グラフ（7日 / 30日 / 90日切替）
+   - 右上「InBody」から InBody 画面へ
+4-2. **InBody**（体重画面から）
+   - 結果用紙の QR（`https://qrcode.inbody.com?IBData=...`）をカメラ・写真・貼り付けで読み取る（mobile_scanner）
+   - IBData は固定桁の平文。桁位置は `lib/core/inbody.dart`（InBody270 の実物で照合）。他機種は未対応としてエラー
+   - 体重＝除脂肪量＋体脂肪量などの整合性が取れないときは保存しない
+   - 確認画面（InBody アプリ風：点数、体成分、筋肉・脂肪、肥満、部位別、体重調整、研究項目、インピーダンス）→ 記録日を選んで保存
+   - 保存時オプション：体重記録に反映（既定オン）、目標カロリーを推奨エネルギー摂取量にする（既定オフ）
+   - 用紙の日付は本体の時計なので、直近3日以内でなければ記録日の既定は今日
+   - 履歴：体重・骨格筋量・体脂肪率・体脂肪量の推移と一覧、前回比
 5. **設定**
    - 目標カロリー（kcal/日）
    - PFC目標比率（%、合計100になるようバリデーション。初期値 P20 / F25 / C55）
@@ -171,6 +181,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 - **goals**：id, start_date, target_kcal, p_ratio, f_ratio, c_ratio（履歴を残し、日付時点の目標を参照）
 - **chain_menu_cache**：id, store_key, menu_key, display_name, 栄養値一式, source_url, fetched_at
 - **api_usage**：id, timestamp, model, purpose(photo/chain/reanalyze), input_tokens, output_tokens, web_search_requests, cost_usd
+- **inbody_results**（DB version 2 で追加）：id, date, measured_at?, raw(unique, QR文字列), weight_kg, smm_kg, bfm_kg, pbf, score, created_at。詳細表示は raw を解析し直す
 
 ---
 

@@ -46,6 +46,26 @@ jobs:
       - name: Prepare platform folders
         run: bash tool/setup.sh
 
+      # リリース版を Secret の鍵で明示的に署名する。
+      # ~/.android/debug.keystore に置くだけでは使われず、ビルドごとに別の鍵になっていたため
+      - name: Configure release signing
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$DEBUG_KEYSTORE_B64" ]; then
+            echo "::error::Secret DEBUG_KEYSTORE_B64 が未設定です"; exit 1
+          fi
+          echo "$DEBUG_KEYSTORE_B64" | base64 -d > android/app/ci.keystore
+          ALIAS=$(keytool -list -keystore android/app/ci.keystore -storepass android | awk -F, '/PrivateKeyEntry/{print $1; exit}')
+          [ -n "$ALIAS" ] || { echo "::error::鍵を読めません（パスワード android 前提）"; exit 1; }
+          echo "鍵の別名: $ALIAS"
+          keytool -list -v -keystore android/app/ci.keystore -storepass android -alias "$ALIAS" | grep -E 'SHA256:' | head -1 | tee "$RUNNER_TEMP/expected_cert.txt"
+          G=android/app/build.gradle.kts
+          perl -0pi -e "s/(\n\s*buildTypes \{)/\n    signingConfigs {\n        create(\"ci\") {\n            storeFile = file(\"ci.keystore\")\n            storePassword = \"android\"\n            keyAlias = \"$ALIAS\"\n            keyPassword = \"android\"\n        }\n    }\n\1/" "$G"
+          perl -pi -e 's/signingConfig = signingConfigs\.getByName\("debug"\)/signingConfig = signingConfigs.getByName("ci")/' "$G"
+          grep -q 'getByName("ci")' "$G" || { echo "::error::build.gradle.kts の書き換えに失敗"; cat "$G"; exit 1; }
+          sed -n '/signingConfigs {/,/^    }/p;/buildTypes {/,/^    }/p' "$G"
+
       - run: flutter pub get
 
       # Gradle 本体・依存ライブラリを保存して次回から再利用（GitHub のダウンロードが不安定なときの対策）
@@ -106,6 +126,15 @@ jobs:
 
       - name: Rename APK
         run: cp build/app/outputs/flutter-apk/app-release.apk meal-log.apk
+
+      # 署名が Secret の鍵と一致しているか確認（違えば公開しない）
+      - name: Verify signature
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          ACTUAL=$("$APKSIGNER" verify --print-certs meal-log.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 | tr 'a-f' 'A-F')
+          EXPECTED=$(sed 's/.*SHA256: //; s/://g' "$RUNNER_TEMP/expected_cert.txt" | tr -d '[:space:]')
+          echo "APK:    $ACTUAL"; echo "Secret: $EXPECTED"
+          [ "$ACTUAL" = "$EXPECTED" ] || { echo "::error::APK の署名が Secret の鍵と一致しません"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:

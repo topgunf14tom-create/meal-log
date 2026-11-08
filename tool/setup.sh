@@ -61,6 +61,12 @@ elif [ -f "$GRADLE_GROOVY" ] && ! grep -q 'connect-client' "$GRADLE_GROOVY"; the
   printf '\ndependencies {\n    implementation "androidx.health.connect:connect-client:1.1.0"\n    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"\n}\n' >> "$GRADLE_GROOVY"
 fi
 
+# リリースビルドの縮小（R8）でヘルスコネクトの内部クラスが消されないようにする
+PROGUARD=android/app/proguard-rules.pro
+if ! grep -qs 'androidx.health' "$PROGUARD"; then
+  printf '%s\n' '-keep class androidx.health.** { *; }' '-keep class android.health.connect.** { *; }' '-dontwarn androidx.health.**' >> "$PROGUARD"
+fi
+
 # minSdk 26
 for f in android/app/build.gradle.kts android/app/build.gradle; do
   if [ -f "$f" ]; then

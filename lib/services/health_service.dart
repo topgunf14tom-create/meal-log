@@ -105,6 +105,18 @@ class HealthService {
     return (list ?? const []).toSet();
   }
 
+  /// 前回アプリが落ちたときの記録（あれば1回だけ返す）
+  Future<String?> lastCrash() async {
+    if (!_supported) return null;
+    try {
+      return await _ch.invokeMethod<String>('lastCrash');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   Future<bool> openSettings() async {
     if (!_supported) return false;
     try {

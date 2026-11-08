@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app_services.dart';
 import '../../core/dates.dart';
@@ -57,10 +58,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _initHealth() async {
+    await _showLastCrash();
     final st = await s.health.status();
     if (!mounted) return;
     setState(() => _healthAvailable = st == HealthStatus.available);
     await _sync();
+  }
+
+  /// 前回アプリが落ちていたら、その原因を表示する（コピーして送れるように）
+  Future<void> _showLastCrash() async {
+    final text = await s.health.lastCrash();
+    if (text == null || text.isEmpty || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('前回アプリが終了した原因'),
+        content: SingleChildScrollView(
+          child: SelectableText(text, style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (c.mounted) Navigator.pop(c);
+            },
+            child: const Text('コピーして閉じる'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('閉じる')),
+        ],
+      ),
+    );
   }
 
   /// ヘルスコネクトから取り込み（連携オフなら何もしない）。取り込み後は revision 経由で再読み込み

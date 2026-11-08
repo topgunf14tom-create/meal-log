@@ -5,6 +5,8 @@ package __PACKAGE__
 // 読み取りのみで、書き込みや外部送信はしない。
 
 import android.content.Intent
+import android.os.Bundle
+import java.io.File
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
@@ -45,6 +47,34 @@ class MainActivity : FlutterActivity() {
         "activeKcal" to HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
     )
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        installCrashRecorder()
+        super.onCreate(savedInstanceState)
+    }
+
+    /** 落ちたときの原因を保存し、次回起動時に Dart 側で表示する */
+    private fun installCrashRecorder() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        if (previous is CrashRecorder) return
+        Thread.setDefaultUncaughtExceptionHandler(CrashRecorder(File(filesDir, CRASH_FILE), previous))
+    }
+
+    private class CrashRecorder(
+        private val file: File,
+        private val previous: Thread.UncaughtExceptionHandler?,
+    ) : Thread.UncaughtExceptionHandler {
+        override fun uncaughtException(t: Thread, e: Throwable) {
+            try {
+                file.writeText(
+                    "${java.util.Date()} / Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT}) / " +
+                        "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n\n" + e.stackTraceToString().take(6000)
+                )
+            } catch (_: Exception) {
+            }
+            previous?.uncaughtException(t, e)
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -67,6 +97,13 @@ class MainActivity : FlutterActivity() {
             result.success(sdkStatus())
             return
         }
+        if (call.method == "lastCrash") {
+            val f = File(filesDir, CRASH_FILE)
+            val text = if (f.exists()) f.readText() else null
+            f.delete()
+            result.success(text)
+            return
+        }
         if (call.method == "openSettings") {
             try {
                 startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
@@ -83,9 +120,15 @@ class MainActivity : FlutterActivity() {
         val client = HealthConnectClient.getOrCreate(this)
         if (call.method == "request") {
             pendingRequest?.error("cancelled", "別の権限リクエストが始まりました", null)
-            pendingRequest = result
-            @Suppress("DEPRECATION")
-            startActivityForResult(permissionContract.createIntent(this, permissionKeys.values.toSet()), REQUEST_CODE)
+            try {
+                val intent = permissionContract.createIntent(this, permissionKeys.values.toSet())
+                pendingRequest = result
+                @Suppress("DEPRECATION")
+                startActivityForResult(intent, REQUEST_CODE)
+            } catch (e: Throwable) {
+                pendingRequest = null
+                result.error("request_failed", "${e.javaClass.simpleName}: ${e.message}", e.stackTraceToString().take(3000))
+            }
             return
         }
         scope.launch {
@@ -223,5 +266,6 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "meal_log/health"
         private const val REQUEST_CODE = 7301
+        private const val CRASH_FILE = "last_crash.txt"
     }
 }

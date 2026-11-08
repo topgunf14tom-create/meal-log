@@ -9,10 +9,13 @@ import '../../core/meal_type.dart';
 import '../../core/nutrition.dart';
 import '../../core/theme.dart';
 import '../../data/entities.dart';
+import '../../services/health_service.dart';
 import '../../services/image_service.dart';
+import '../../widgets/activity_card.dart';
 import '../../widgets/macro_widgets.dart';
 import '../record/record_screen.dart';
 import '../result_edit/result_edit_screen.dart';
+import '../settings/health_connect.dart';
 import '../settings/settings_screen.dart';
 import '../weight/weight_screen.dart';
 
@@ -23,33 +26,82 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime _day = dayOnly(DateTime.now());
   List<Meal> _meals = [];
   Goal? _goal;
+  ActivityDay? _activity;
+  bool _healthAvailable = false;
 
   AppServices get s => AppServices.I;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    s.activity.revision.addListener(_load);
     _load();
+    _initHealth();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    s.activity.revision.removeListener(_load);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _sync();
+  }
+
+  Future<void> _initHealth() async {
+    final st = await s.health.status();
+    if (!mounted) return;
+    setState(() => _healthAvailable = st == HealthStatus.available);
+    await _sync();
+  }
+
+  /// ヘルスコネクトから取り込み（連携オフなら何もしない）。取り込み後は revision 経由で再読み込み
+  Future<void> _sync({bool force = false}) async {
+    final msg = await s.activity.sync(force: force, days: [_day]);
+    if (force && msg != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 
   Future<void> _load() async {
     final d = ymd(_day);
     final meals = await s.db.mealsOn(d);
     final goal = await s.db.goalOn(d);
+    final activity = await s.db.activityOn(d);
     if (!mounted) return;
     setState(() {
       _meals = meals;
       _goal = goal;
+      _activity = activity;
     });
+  }
+
+  Future<void> _dayChanged() async {
+    await _load();
+    if (_activity == null) await _sync();
+  }
+
+  Future<void> _connect() async {
+    await connectHealth(context);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _dismissPrompt() async {
+    await s.settings.set('health_prompt_dismissed', 'true');
+    if (mounted) setState(() {});
   }
 
   void _shift(int days) {
     setState(() => _day = addDays(_day, days));
-    _load();
+    _dayChanged();
   }
 
   Future<void> _pickDate() async {
@@ -61,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (picked != null) {
       setState(() => _day = dayOnly(picked));
-      _load();
+      _dayChanged();
     }
   }
 
@@ -93,6 +145,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final isToday = ymd(_day) == ymd(DateTime.now());
     final total = Pfc.sum(_meals.expand((m) => m.items));
     final goal = _goal;
+    final healthOn = s.settings.healthEnabled;
+    final burn = healthOn ? _activity?.totalKcal : null;
+    final showPrompt = !healthOn && _healthAvailable && !s.settings.healthPromptDismissed;
 
     return Scaffold(
       appBar: AppBar(
@@ -127,12 +182,27 @@ class _HomeScreenState extends State<HomeScreen> {
       body: goal == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _load,
+              onRefresh: () async {
+                await _load();
+                await _sync(force: true);
+              },
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                 children: [
-                  _CalorieCard(total: total, goal: goal),
+                  _CalorieCard(
+                    total: total,
+                    goal: goal,
+                    burn: (s.settings.addBurnToGoal && burn != null) ? burn : 0,
+                  ),
                   const SizedBox(height: 12),
+                  if (healthOn) ...[
+                    ActivityCard(activity: _activity, onRefresh: () => _sync(force: true)),
+                    const SizedBox(height: 12),
+                  ],
+                  if (showPrompt) ...[
+                    _HealthPromptCard(onConnect: _connect, onDismiss: _dismissPrompt),
+                    const SizedBox(height: 12),
+                  ],
                   _PfcCard(total: total, goal: goal),
                   const SizedBox(height: 12),
                   for (final type in MealType.values)
@@ -149,16 +219,50 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+class _HealthPromptCard extends StatelessWidget {
+  const _HealthPromptCard({required this.onConnect, required this.onDismiss});
+
+  final VoidCallback onConnect;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ヘルスコネクトと連携', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            const Text('InBody の体重・体脂肪、Strava の運動、歩数を自動で取り込み、消費カロリーを計算します'),
+            OverflowBar(
+              alignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: onDismiss, child: const Text('今はしない')),
+                FilledButton.tonal(onPressed: onConnect, child: const Text('連携する')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CalorieCard extends StatelessWidget {
-  const _CalorieCard({required this.total, required this.goal});
+  const _CalorieCard({required this.total, required this.goal, this.burn = 0});
 
   final Pfc total;
   final Goal goal;
 
+  /// 目標に上乗せする消費カロリー（ヘルスコネクト）
+  final double burn;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final target = goal.targetKcal.toDouble();
+    final target = goal.targetKcal + burn.roundToDouble();
     final remain = target - total.kcal;
     final ratio = target <= 0 ? 0.0 : (total.kcal / target).clamp(0.0, 1.0).toDouble();
     return Card(
@@ -173,7 +277,7 @@ class _CalorieCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(kcal0(total.kcal), style: Theme.of(context).textTheme.headlineMedium),
-                Text(' / ${goal.targetKcal} kcal'),
+                Text(' / ${kcal0(target)} kcal'),
                 const Spacer(),
                 Text(
                   remain >= 0 ? 'あと ${kcal0(remain)} kcal' : '${kcal0(-remain)} kcal オーバー',
@@ -181,6 +285,8 @@ class _CalorieCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (burn > 0)
+              Text('目標 ${goal.targetKcal} ＋ 消費 ${kcal0(burn)} kcal', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),

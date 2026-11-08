@@ -152,10 +152,12 @@ class _WeightScreenState extends State<WeightScreen> {
             ListTile(
               dense: true,
               title: Text(jpDate(parseYmd(e.date))),
+              subtitle: e.isAuto ? const Text('ヘルスコネクトから自動') : null,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('${e.kg.toStringAsFixed(1)} kg'),
+                  Text('${e.kg.toStringAsFixed(1)} kg'
+                      '${e.bodyFatPct == null ? '' : '  ${e.bodyFatPct!.toStringAsFixed(1)}%'}'),
                   IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _delete(e)),
                 ],
               ),

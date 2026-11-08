@@ -8,9 +8,11 @@ import '../../core/dates.dart';
 import '../../core/links.dart';
 import '../../core/models.dart';
 import '../../data/entities.dart';
+import '../../services/health_service.dart';
 import '../../widgets/goal_form.dart';
 import '../onboarding/onboarding_screen.dart';
 import 'api_key_widgets.dart';
+import 'health_connect.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,6 +28,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _key;
   UsageSummary _usage = const UsageSummary();
   int _cacheCount = 0;
+  HealthStatus? _healthStatus;
+  Set<String> _granted = {};
+  String _heightInfo = '';
+  late final _height = TextEditingController(text: s.settings.heightCm?.toStringAsFixed(1) ?? '');
 
   late final _photoModel = TextEditingController(text: s.settings.photoModel);
   late final _chainModel = TextEditingController(text: s.settings.chainModel);
@@ -47,7 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
-    for (final c in [_photoModel, _chainModel, _reModel, _fx, _hIn, _hOut, _sIn, _sOut, _search]) {
+    for (final c in [_photoModel, _chainModel, _reModel, _fx, _hIn, _hOut, _sIn, _sOut, _search, _height]) {
       c.dispose();
     }
     super.dispose();
@@ -59,8 +65,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final key = await s.keys.read();
     final usage = await s.db.usageForMonth(ym(now));
     final cache = await s.db.chainCacheCount();
+    final hs = await s.health.status();
+    final granted = await s.health.granted();
+    final (h, src) = await s.activity.heightSource();
     if (!mounted) return;
     setState(() {
+      _healthStatus = hs;
+      _granted = granted;
+      _heightInfo = '計算に使う身長：${h.toStringAsFixed(1)} cm（$src）';
       _goal = goal;
       _key = key;
       _usage = usage;
@@ -94,6 +106,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (double.tryParse(c.text.trim()) != null) await st.set(key, c.text.trim());
     }
     _snack('設定を保存しました');
+  }
+
+  Future<void> _saveHeight() async {
+    final t = _height.text.trim();
+    final v = double.tryParse(t);
+    if (t.isNotEmpty && (v == null || v < 80 || v > 250)) {
+      _snack('身長を正しく入力してください（cm）');
+      return;
+    }
+    await s.settings.set('height_cm', t);
+    if (mounted) FocusScope.of(context).unfocus();
+    await _load();
+    await s.activity.sync(force: true);
+    _snack(t.isEmpty ? '身長は自動取得の値を使います' : '身長を保存しました');
+  }
+
+  Widget _healthSection() {
+    final small = Theme.of(context).textTheme.bodySmall;
+    final st = _healthStatus;
+    if (st == null) return const SizedBox.shrink();
+    if (st != HealthStatus.available) {
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.health_and_safety_outlined),
+          title: Text(st == HealthStatus.updateRequired ? 'ヘルスコネクトの更新が必要です' : 'この端末では使えません'),
+          subtitle: const Text('Android のヘルスコネクトが必要です'),
+        ),
+      );
+    }
+    final on = s.settings.healthEnabled;
+    final missing = HealthService.allKeys.where((k) => !_granted.contains(k)).toList();
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SwitchListTile(
+            secondary: const Icon(Icons.health_and_safety_outlined),
+            title: const Text('自動で取り込む'),
+            subtitle: Text(on
+                ? (missing.isEmpty
+                    ? 'アプリを開いたときに体重・歩数・運動を取り込みます'
+                    : '未許可：${missing.map((k) => HealthService.keyLabels[k]).join('・')}')
+                : 'InBody・Strava などがヘルスコネクトに書いたデータを読み取ります'),
+            value: on && _granted.isNotEmpty,
+            onChanged: (v) async {
+              if (v) {
+                await connectHealth(context);
+              } else {
+                await s.settings.set('health_enabled', 'false');
+              }
+              await _load();
+            },
+          ),
+          SwitchListTile(
+            title: const Text('消費カロリーを目標に上乗せ'),
+            subtitle: const Text('歩数と運動の分だけ、その日の目標カロリーを増やします'),
+            value: s.settings.addBurnToGoal,
+            onChanged: (v) async {
+              await s.settings.set('add_burn_to_goal', v ? 'true' : 'false');
+              setState(() {});
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _height,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: '身長（空欄なら自動）',
+                      suffixText: 'cm',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonal(onPressed: _saveHeight, child: const Text('保存')),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Text('$_heightInfo\n歩幅＝身長×0.45、歩行カロリー＝体重×距離×0.5。運動中の歩数は除き、運動は活動カロリー（無ければ推定）で計算',
+                style: small),
+          ),
+          OverflowBar(
+            alignment: MainAxisAlignment.end,
+            children: [
+              TextButton(onPressed: () => s.health.openSettings(), child: const Text('ヘルスコネクトの設定')),
+              if (on)
+                TextButton(
+                  onPressed: () async {
+                    final msg = await s.activity.sync(force: true);
+                    if (msg != null) _snack(msg);
+                  },
+                  child: const Text('今すぐ同期'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   void _resetModels() {
@@ -196,6 +313,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _snack('目標を保存しました（今日から適用）');
               },
             ),
+
+          _section('ヘルスコネクト'),
+          _healthSection(),
 
           _section('Claude APIキー'),
           Card(

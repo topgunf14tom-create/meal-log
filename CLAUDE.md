@@ -15,6 +15,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
   3. 目標カロリー・PFC目標比率の設定
   4. 1日のカロリー・PFCバランス表示
   5. 体重の手入力と推移グラフ
+  6. ヘルスコネクト連携（InBody の体重・体脂肪、Strava の運動、歩数を自動取り込みし、消費カロリーを計算）
 - UI・ロゴ・食品DBはあすけんを模倣しない（オリジナルのシンプルなデザイン）
 
 ---
@@ -34,6 +35,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 | グラフ | CustomPaint（自前描画。外部パッケージ依存を減らすため） |
 | 日付 | 自前の日付ヘルパー（lib/core/dates.dart）＋flutter_localizations（ja） |
 | QR読み取り | mobile_scanner（InBody 用紙の QR） |
+| ヘルスコネクト | androidx.health.connect:connect-client 1.1.0 を MainActivity（Kotlin）から直接呼び、MethodChannel `meal_log/health` で Dart へ。Kotlin の元ファイルは `tool/android/`、setup スクリプトが android/ にコピー |
 
 ---
 
@@ -61,6 +63,9 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
    - PFCバランス：実績 g と目標 g の横棒＋比率の円グラフ
    - 食事区分ごとのリスト（朝食・昼食・夕食・間食）
    - 右下 FAB：「記録する」
+   - 消費カロリーカード（ヘルスコネクト連携時）：歩数と歩行 kcal、運動（Strava 等）ごとの時間・kcal、合計
+   - 連携オンかつ「消費カロリーを目標に上乗せ」がオンなら、目標＝目標kcal＋その日の消費 kcal
+   - 未連携でヘルスコネクトがある端末には「連携する」カード（閉じられる）
 2. **記録追加**
    - 食事区分選択（時刻から自動推定、変更可）
    - 入力方法：「写真で解析」「チェーン店メニュー」「お酒」「手入力」
@@ -93,6 +98,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
    - 画像圧縮設定（長辺 px、JPEG品質）
    - 今月のAPI利用量と概算料金
    - データのエクスポート（JSON）/ インポート
+   - ヘルスコネクト：自動取り込みオン/オフ（オンで権限画面）、消費カロリーを目標に上乗せ（既定オン）、身長（空欄なら ヘルスコネクト→最新InBody→170cm の順）、今すぐ同期、ヘルスコネクトの設定を開く
 
 ---
 
@@ -184,6 +190,8 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 - **goals**：id, start_date, target_kcal, p_ratio, f_ratio, c_ratio（履歴を残し、日付時点の目標を参照）
 - **chain_menu_cache**：id, store_key, menu_key, display_name, 栄養値一式, source_url, fetched_at
 - **api_usage**：id, timestamp, model, purpose(photo/chain/reanalyze), input_tokens, output_tokens, web_search_requests, cost_usd
+- **weights** に DB version 3 で `source`（manual / health）と `body_fat_pct` を追加。health の行だけ自動取り込みで上書きし、手入力・InBody QR の日は上書きしない
+- **activity_days**（DB version 3 で追加）：date(PK), steps, walk_steps, walk_kcal, exercise_kcal, exercises_json, synced_at
 - **inbody_results**（DB version 2 で追加）：id, date, measured_at?, raw(unique, QR文字列), weight_kg, smm_kg, bfm_kg, pbf, score, created_at。詳細表示は raw を解析し直す
 
 ---
@@ -196,6 +204,17 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
   - C = 目標kcal × C比率 ÷ 4
 - 実績の PFC 比率：各エネルギー（P×4, F×9, C×4）÷ その合計
 - 量の編集時：元の grams（または amount）に対する比で kcal・PFC を按分
+
+### 7.1 ヘルスコネクトと消費カロリー（`lib/core/activity.dart`、`lib/services/activity_sync.dart`）
+- 読み取る権限：体重・体脂肪率・除脂肪量・身長・歩数・エクササイズ・活動カロリー（読み取りのみ、書き込みなし）
+- 取り込みのタイミング：アプリ起動時・復帰時（5分以内の再実行は省略）、ホームの引っ張り更新・同期ボタン、日付切替でその日のデータが無いとき。バックグラウンド実行はしない
+- 体重・体脂肪：前回取り込みの2日前から（初回は30日前から）読み、日ごとに最新の値を weights へ
+- 対象日：今日・昨日・表示中の日（30日以内）
+- 歩数は区間集計（AggregateRequest、ヘルスコネクト側で重複除去）を使う
+- 運動：同じ時間帯に重なる記録は1つにまとめる（Strava と Fit の二重記録対策）
+- 歩幅＝身長×0.45、距離 km＝歩数×歩幅÷1000、歩行 kcal＝体重×距離×0.5（体重はその日以前の最新、無ければ60kg）
+- 運動中の歩数は歩行から除く。運動 kcal はその時間帯の活動カロリー、無ければ (METs−1)×体重×時間 で推定（表示に「約」）
+- 1日全体の活動カロリーは使わない（歩数分と二重計上になるため）
 
 ---
 
@@ -220,7 +239,7 @@ test/
 
 ## 9. 非機能要件・ルール
 - APIキーはソースコード・ログ・Git に絶対に含めない
-- 通信は Claude API のみ。その他の外部送信はしない
+- 通信は Claude API のみ。その他の外部送信はしない（ヘルスコネクトは端末内の読み取りのみ）
 - オフラインでも記録の閲覧・手入力・体重記録はできること
 - 日本語UI、数値は kcal は整数、g は小数1桁
 - 各サービス層にユニットテストを書く（JSONパース、PFC計算、料金計算、キャッシュ正規化）
@@ -257,3 +276,5 @@ test/
 - android/・ios/ はリポジトリに含めず、setup スクリプトで生成・設定追記する（INTERNET権限、https の queries、minSdk 26、iOSの利用目的文言）
 - APK は `.github/workflows/build-apk.yml` で自動ビルド。署名鍵は Secret `DEBUG_KEYSTORE_B64` から復元
 - エクスポート/インポートはクリップボード経由の JSON（写真は含まない）
+- ヘルスコネクト連携（7.1）を実装。setup スクリプトがヘルスコネクトの権限・queries・権限説明画面（PermissionsRationaleActivity と activity-alias）・依存ライブラリを追記し、MainActivity を `tool/android/MainActivity.kt` で置き換える
+- TODO：バックグラウンドでの定期取り込み（READ_HEALTH_DATA_IN_BACKGROUND）、30日より前の履歴（READ_HEALTH_DATA_HISTORY）は未対応

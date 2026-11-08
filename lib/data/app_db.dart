@@ -19,7 +19,17 @@ class AppDb {
     'api_usage',
     'settings',
     'inbody_results',
+    'activity_days',
   ];
+
+  static const _activityTable = '''CREATE TABLE activity_days(
+      date TEXT PRIMARY KEY,
+      steps INTEGER NOT NULL,
+      walk_steps INTEGER NOT NULL,
+      walk_kcal REAL NOT NULL,
+      exercise_kcal REAL NOT NULL,
+      exercises_json TEXT NOT NULL,
+      synced_at TEXT NOT NULL)''';
 
   static const _inbodyTable = '''CREATE TABLE inbody_results(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +70,9 @@ class AppDb {
     '''CREATE TABLE weights(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL UNIQUE,
-      weight_kg REAL NOT NULL)''',
+      weight_kg REAL NOT NULL,
+      source TEXT NOT NULL DEFAULT 'manual',
+      body_fat_pct REAL)''',
     '''CREATE TABLE goals(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       start_date TEXT NOT NULL UNIQUE,
@@ -91,13 +103,14 @@ class AppDb {
       value TEXT)''',
     _inbodyTable,
     'CREATE INDEX idx_inbody_date ON inbody_results(date)',
+    _activityTable,
   ];
 
   Future<void> open() async {
     final dir = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dir, 'meal_log.db'),
-      version: 2,
+      version: 3,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         for (final sql in _schema) {
@@ -108,6 +121,11 @@ class AppDb {
         if (oldVersion < 2) {
           await db.execute(_inbodyTable);
           await db.execute('CREATE INDEX idx_inbody_date ON inbody_results(date)');
+        }
+        if (oldVersion < 3) {
+          await db.execute("ALTER TABLE weights ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'");
+          await db.execute('ALTER TABLE weights ADD COLUMN body_fat_pct REAL');
+          await db.execute(_activityTable);
         }
       },
     );
@@ -167,8 +185,27 @@ class AppDb {
   // ---------- 体重 ----------
 
   Future<void> saveWeight(WeightEntry w) async {
-    await _db.insert('weights', {'date': w.date, 'weight_kg': w.kg},
+    await _db.insert(
+        'weights', {'date': w.date, 'weight_kg': w.kg, 'source': w.source, 'body_fat_pct': w.bodyFatPct},
         conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// ヘルスコネクトの値を取り込む。手入力・InBody QR の記録がある日は上書きしない。保存したら true
+  Future<bool> importHealthWeight(WeightEntry w) async {
+    final r = await _db.query('weights', where: 'date = ?', whereArgs: [w.date], limit: 1);
+    if (r.isNotEmpty) {
+      final cur = WeightEntry.fromDbMap(r.first);
+      if (!cur.isAuto) return false;
+      if (cur.kg == w.kg && cur.bodyFatPct == w.bodyFatPct) return false;
+    }
+    await saveWeight(w);
+    return true;
+  }
+
+  /// その日以前で最も新しい体重
+  Future<WeightEntry?> weightOnOrBefore(String date) async {
+    final r = await _db.query('weights', where: 'date <= ?', whereArgs: [date], orderBy: 'date DESC', limit: 1);
+    return r.isEmpty ? null : WeightEntry.fromDbMap(r.first);
   }
 
   Future<void> deleteWeight(String date) async {
@@ -208,6 +245,17 @@ class AppDb {
 
   Future<void> deleteInBody(int id) async {
     await _db.delete('inbody_results', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ---------- 活動（ヘルスコネクト） ----------
+
+  Future<void> saveActivity(ActivityDay a) async {
+    await _db.insert('activity_days', a.toDbMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<ActivityDay?> activityOn(String date) async {
+    final r = await _db.query('activity_days', where: 'date = ?', whereArgs: [date], limit: 1);
+    return r.isEmpty ? null : ActivityDay.fromDbMap(r.first);
   }
 
   // ---------- チェーン店キャッシュ ----------

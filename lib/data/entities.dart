@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import '../core/activity.dart';
 import '../core/meal_type.dart';
 
 double? toDoubleOrNull(Object? v) {
@@ -215,14 +218,77 @@ class Goal {
 }
 
 class WeightEntry {
-  const WeightEntry({required this.date, required this.kg});
+  const WeightEntry({required this.date, required this.kg, this.source = sourceManual, this.bodyFatPct});
+
+  /// 手入力・InBody の QR（ヘルスコネクトの値では上書きしない）
+  static const sourceManual = 'manual';
+
+  /// ヘルスコネクトから自動取り込み
+  static const sourceHealth = 'health';
 
   /// yyyy-MM-dd
   final String date;
   final double kg;
+  final String source;
+  final double? bodyFatPct;
 
-  factory WeightEntry.fromDbMap(Map<String, Object?> m) =>
-      WeightEntry(date: m['date'] as String? ?? '', kg: toDouble(m['weight_kg']));
+  bool get isAuto => source == sourceHealth;
+
+  factory WeightEntry.fromDbMap(Map<String, Object?> m) => WeightEntry(
+        date: m['date'] as String? ?? '',
+        kg: toDouble(m['weight_kg']),
+        source: m['source'] as String? ?? sourceManual,
+        bodyFatPct: m['body_fat_pct'] == null ? null : toDouble(m['body_fat_pct']),
+      );
+}
+
+/// 1日の活動（ヘルスコネクトから計算した消費カロリー）
+class ActivityDay {
+  const ActivityDay({
+    required this.date,
+    required this.totalSteps,
+    required this.walkSteps,
+    required this.walkKcal,
+    required this.exercises,
+    required this.syncedAt,
+  });
+
+  /// yyyy-MM-dd
+  final String date;
+  final int totalSteps;
+  final int walkSteps;
+  final double walkKcal;
+  final List<ExerciseEntry> exercises;
+  final DateTime syncedAt;
+
+  double get exerciseKcal => exercises.fold(0.0, (a, e) => a + e.kcal);
+  double get totalKcal => walkKcal + exerciseKcal;
+
+  Map<String, Object?> toDbMap() => {
+        'date': date,
+        'steps': totalSteps,
+        'walk_steps': walkSteps,
+        'walk_kcal': walkKcal,
+        'exercise_kcal': exerciseKcal,
+        'exercises_json': jsonEncode(exercises.map((e) => e.toJson()).toList()),
+        'synced_at': syncedAt.toIso8601String(),
+      };
+
+  factory ActivityDay.fromDbMap(Map<String, Object?> m) {
+    List<ExerciseEntry> ex = const [];
+    try {
+      final list = jsonDecode(m['exercises_json'] as String? ?? '[]') as List;
+      ex = list.whereType<Map>().map((e) => ExerciseEntry.fromJson(e.cast<String, dynamic>())).toList();
+    } catch (_) {}
+    return ActivityDay(
+      date: m['date'] as String? ?? '',
+      totalSteps: (m['steps'] as num?)?.toInt() ?? 0,
+      walkSteps: (m['walk_steps'] as num?)?.toInt() ?? 0,
+      walkKcal: toDouble(m['walk_kcal']),
+      exercises: ex,
+      syncedAt: DateTime.tryParse(m['synced_at'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class UsageSummary {

@@ -1,0 +1,125 @@
+name: Install test variants
+
+on:
+  push:
+    branches: [install-debug]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [no-alias, no-health-manifest, no-health-at-all]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # 署名鍵を毎回同じにする（違うと上書きインストールできず、データが消える）
+      - name: Restore signing key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+            echo "署名鍵: Secret から復元しました"
+          else
+            echo "::warning::Secret DEBUG_KEYSTORE_B64 が未設定です。ビルドごとに署名が変わり、アップデート時にアンインストールが必要になります"
+          fi
+
+      - name: Prepare platform folders
+        run: bash tool/setup.sh
+
+      - name: Apply test variant
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          V=${{ matrix.variant }}
+          # activity-alias（Android 14+ の権限説明）を外す
+          perl -0pi -e 's#\s*<activity-alias.*?</activity-alias>##s' "$M"
+          if [ "$V" != "no-alias" ]; then
+            perl -0pi -e 's#\s*<activity android:name=".PermissionsRationaleActivity".*?</activity>##s' "$M"
+            perl -pi -e 's#^.*android.permission.health.*\n##; s#^.*com.google.android.apps.healthdata.*\n##' "$M"
+          fi
+          if [ "$V" = "no-health-at-all" ]; then
+            MAIN_KT=$(find android/app/src/main -name MainActivity.kt | head -n 1)
+            PKG=$(sed -n 's/^package \(.*\)$/\1/p' "$MAIN_KT" | head -n 1)
+            printf 'package %s\n\nimport io.flutter.embedding.android.FlutterActivity\n\nclass MainActivity : FlutterActivity()\n' "$PKG" > "$MAIN_KT"
+            rm -f "$(dirname "$MAIN_KT")/PermissionsRationaleActivity.kt"
+            perl -0pi -e 's#\ndependencies \{\n\s*implementation\("androidx.health.connect.*?\}\n##s' android/app/build.gradle.kts
+          fi
+          cat "$M"
+          tail -5 android/app/build.gradle.kts
+
+      - run: flutter pub get
+
+      # Gradle 本体・依存ライブラリを保存して次回から再利用（GitHub のダウンロードが不安定なときの対策）
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper/dists
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.lock') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # Gradle 本体を粘り強く先に取得し、ローカルのファイルから使わせる
+      - name: Prefetch Gradle distribution
+        run: |
+          PROPS=android/gradle/wrapper/gradle-wrapper.properties
+          URL=$(grep '^distributionUrl=' "$PROPS" | cut -d= -f2- | sed 's#\\:#:#g')
+          NAME=$(basename "$URL" .zip)
+          if ls ~/.gradle/wrapper/dists/"$NAME"/*/*.ok >/dev/null 2>&1; then
+            echo "Gradle はキャッシュ済み: $NAME"
+          else
+            # 公式（services.gradle.org）→ GitHub → 国内外のミラーの順に試し、公式の SHA-256 で検証する
+            SHA=""
+            for u in "https://services.gradle.org/distributions/$NAME.zip.sha256" "$URL.sha256"; do
+              SHA=$(curl -fsL --retry 5 --retry-all-errors --retry-delay 10 "$u" | tr -d '[:space:]') && [ ${#SHA} -eq 64 ] && break
+              SHA=""
+            done
+            ok=""
+            for u in "https://services.gradle.org/distributions/$NAME.zip" "$URL" "https://mirrors.cloud.tencent.com/gradle/$NAME.zip"; do
+              # ミラーは公式の SHA-256 で検証できるときだけ使う
+              case "$u" in *tencent*) [ -n "$SHA" ] || continue;; esac
+              echo "取得: $u"
+              if curl -fL --retry 4 --retry-all-errors --retry-delay 15 --connect-timeout 30 -o "$RUNNER_TEMP/gradle.zip" "$u"; then
+                if [ -z "$SHA" ] || echo "$SHA  $RUNNER_TEMP/gradle.zip" | sha256sum -c -; then ok=1; break; fi
+              fi
+            done
+            [ -n "$ok" ] || { echo "::error::Gradle 本体を取得できませんでした"; exit 1; }
+            if [ -z "$SHA" ]; then echo "::warning::SHA-256 を取得できず、公式の配布元から取得したものを検証なしで使いました"; fi
+          fi
+          # キャッシュと同じ置き場所になるよう、常にローカルファイルの URL にそろえる
+          sed -i "s#^distributionUrl=.*#distributionUrl=file\\:$RUNNER_TEMP/gradle.zip#" "$PROPS"
+          grep distributionUrl "$PROPS"
+
+      # 依存ライブラリのダウンロードが一時的に失敗する（504 など）ことがあるので最大5回試す
+      - name: Build APK
+        run: |
+          for i in 1 2 3 4 5; do
+            flutter build apk --release && exit 0
+            echo "::warning::ビルド失敗（$i 回目）。$((i * 60))秒後に再試行します"
+            sleep $((i * 60))
+          done
+          exit 1
+
+      - name: Publish test APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          T=test-${{ matrix.variant }}
+          cp build/app/outputs/flutter-apk/app-release.apk meal-log-$T.apk
+          gh release delete "$T" --yes --cleanup-tag || true
+          gh release create "$T" meal-log-$T.apk --prerelease --title "インストール確認用 ${{ matrix.variant }}" --notes "原因切り分け用。確認後に削除します" --target "$GITHUB_SHA"

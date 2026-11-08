@@ -66,7 +66,21 @@ jobs:
           if ls ~/.gradle/wrapper/dists/"$NAME"/*/*.ok >/dev/null 2>&1; then
             echo "Gradle はキャッシュ済み: $NAME"
           else
-            curl -fL --retry 15 --retry-all-errors --retry-delay 20 --connect-timeout 30 -o "$RUNNER_TEMP/gradle.zip" "$URL"
+            # 公式（services.gradle.org）→ GitHub → 国内外のミラーの順に試し、公式の SHA-256 で検証する
+            SHA=""
+            for u in "https://services.gradle.org/distributions/$NAME.zip.sha256" "$URL.sha256"; do
+              SHA=$(curl -fsL --retry 5 --retry-all-errors --retry-delay 10 "$u" | tr -d '[:space:]') && [ ${#SHA} -eq 64 ] && break
+              SHA=""
+            done
+            ok=""
+            for u in "https://services.gradle.org/distributions/$NAME.zip" "$URL" "https://mirrors.cloud.tencent.com/gradle/$NAME.zip"; do
+              echo "取得: $u"
+              if curl -fL --retry 4 --retry-all-errors --retry-delay 15 --connect-timeout 30 -o "$RUNNER_TEMP/gradle.zip" "$u"; then
+                if [ -z "$SHA" ] || echo "$SHA  $RUNNER_TEMP/gradle.zip" | sha256sum -c -; then ok=1; break; fi
+              fi
+            done
+            [ -n "$ok" ] || { echo "::error::Gradle 本体を取得できませんでした"; exit 1; }
+            if [ -z "$SHA" ]; then echo "::warning::SHA-256 を取得できず検証を省略しました"; fi
           fi
           # キャッシュと同じ置き場所になるよう、常にローカルファイルの URL にそろえる
           sed -i "s#^distributionUrl=.*#distributionUrl=file\\:$RUNNER_TEMP/gradle.zip#" "$PROPS"

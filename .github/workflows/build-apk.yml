@@ -54,7 +54,15 @@ jobs:
 
       - run: flutter test
 
-      - run: flutter build apk --release
+      # Gradle 本体のダウンロードが一時的に失敗する（504 など）ことがあるので最大3回試す
+      - name: Build APK
+        run: |
+          for i in 1 2 3; do
+            flutter build apk --release && exit 0
+            echo "::warning::ビルド失敗（$i 回目）。60秒後に再試行します"
+            sleep 60
+          done
+          exit 1
 
       - name: Rename APK
         run: cp build/app/outputs/flutter-apk/app-release.apk meal-log.apk

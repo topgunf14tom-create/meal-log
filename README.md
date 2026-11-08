@@ -38,33 +38,25 @@
 
 ---
 
-## 2. APK のビルド
+## 2. APK の入手（GitHub Actions で自動ビルド）
 
-この一式には `android/` フォルダが含まれていません。初回に `tool/setup` スクリプトが `flutter create` で生成し、インターネット権限などを自動で追記します。
+`main` にpushすると GitHub Actions が自動でビルド・テストし、「最新版」リリースに APK を載せます。
 
-### 方法A：GitHub Actions（PC に Flutter がなくてもOK）
+- **ダウンロード先**：<https://github.com/topgunf14tom-create/meal-log/releases/latest>
+  スマホのブラウザで開き、`meal-log.apk` をタップしてダウンロード → インストール
+- ビルドの状況：リポジトリの **Actions** タブ（緑のチェック＝成功）
+- 手動で再ビルド：Actions →「Build APK」→「Run workflow」
+- `README.md` などの文書だけの変更ではビルドは走りません
 
-1. GitHub に**非公開（Private）**リポジトリを作り、このフォルダの中身をすべて push します。
-2. **署名鍵を登録**（アップデート時にデータを消さないため。初回だけ）
-   Windows の PowerShell で、PC にある Android の署名鍵を Base64 にしてコピーします。
-   ```powershell
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.android\debug.keystore")) | Set-Clipboard
-   ```
-   ファイルが無い場合は、JDK の keytool で作成します。
-   ```powershell
-   keytool -genkeypair -keystore "$env:USERPROFILE\.android\debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-   ```
-   リポジトリの Settings → Secrets and variables → Actions → **New repository secret** で、
-   名前 `DEBUG_KEYSTORE_B64`、値に貼り付けて保存します。
-3. **Actions** タブ → **Build APK** → **Run workflow**（main への push でも自動実行）。
-4. 完了したら実行結果の **Artifacts** から `meal_log-apk` をダウンロードし、中の `app-release.apk` をスマホに入れます。
+署名鍵は Secret `DEBUG_KEYSTORE_B64` から毎回同じものを復元しています。同じ鍵で署名されるので、新しいAPKは**上書きインストール**でき、記録は消えません。
+（鍵を作り直したり Secret を消したりすると上書きできなくなるので、変更しないでください）
 
-### 方法B：Windows PC でビルド
+### 参考：Windows PC で手元ビルドする場合
 
-Flutter SDK と Android Studio（Android SDK）が入っている前提です。
+Flutter SDK と Android Studio（Android SDK）が入っている前提です。この一式には `android/` フォルダが含まれていないため、初回に `tool/setup.ps1` が生成します。
 
 ```powershell
-cd meal_log
+cd meal-log
 powershell -ExecutionPolicy Bypass -File tool\setup.ps1
 flutter pub get
 flutter test
@@ -72,19 +64,12 @@ flutter build apk --release
 ```
 
 出力：`build\app\outputs\flutter-apk\app-release.apk`
-スマホを USB 接続して `flutter install` でも入れられます。
-
-### ビルドでつまずいたら
-
-この一式はビルド環境の外で書いたため、Flutter やパッケージのバージョンによっては初回ビルドで小さな修正が要る場合があります。
-このフォルダで Claude Code を起動し、「`flutter build apk` のエラーを直して」と頼めば、CLAUDE.md を読んだうえで修正してくれます。
-パッケージのバージョンが古いと言われたら `flutter pub upgrade --major-versions` を試してください。
 
 ---
 
 ## 3. インストールと使い方
 
-1. APK をスマホに送り（Google ドライブ等）、タップしてインストール。「提供元不明のアプリ」の許可を求められたら許可します。
+1. 上のダウンロード先から `meal-log.apk` をダウンロードしてタップ。「提供元不明のアプリ」の許可を求められたら、ブラウザ（Chrome など）に許可します。
 2. 初回起動の案内に沿って APIキーと目標カロリーを設定します。
 3. ホームの「記録する」→
    - **写真で解析**：撮影すると Haiku が料理・量・カロリー・PFCを推定。内容を直して保存。精度が気になるときは「Sonnetで再解析」

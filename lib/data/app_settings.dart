@@ -19,6 +19,14 @@ class AppSettings {
   double _d(String key, double fallback) => double.tryParse(_values[key] ?? '') ?? fallback;
   int _i(String key, int fallback) => int.tryParse(_values[key] ?? '') ?? fallback;
 
+  /// 任意のキーの値（未設定なら null）
+  String? raw(String key) => _values[key];
+
+  Future<void> remove(String key) async {
+    _values.remove(key);
+    await _db.setSetting(key, '');
+  }
+
   Future<void> set(String key, Object value) async {
     _values[key] = value.toString();
     await _db.setSetting(key, value.toString());

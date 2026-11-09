@@ -12,6 +12,7 @@ import '../../services/health_service.dart';
 import '../../widgets/goal_form.dart';
 import '../onboarding/onboarding_screen.dart';
 import 'api_key_widgets.dart';
+import 'backup_reminder_section.dart';
 import 'health_connect.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -317,6 +318,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _section('ヘルスコネクト'),
           _healthSection(),
 
+          _section('自動バックアップ'),
+          const BackupSection(),
+
+          _section('記録忘れの通知'),
+          const ReminderSection(),
+
+          _section('ホーム画面ウィジェット'),
+          const WidgetHelpCard(),
+
           _section('Claude APIキー'),
           Card(
             child: Column(
@@ -443,7 +453,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.upload),
                   title: const Text('エクスポート'),
-                  subtitle: const Text('全データをJSONでクリップボードにコピー'),
+                  subtitle: const Text('全データをJSONでクリップボードにコピー（手動）'),
                   onTap: _export,
                 ),
                 ListTile(

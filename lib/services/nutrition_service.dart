@@ -68,6 +68,46 @@ class NutritionService {
     return AnalysisResult(items: parsed.items, note: parsed.note, model: model);
   }
 
+  /// 栄養成分表示の読み取り（写真解析と同じモデル）
+  Future<AnalysisResult> readLabel(Uint8List jpeg, {String? hint}) async {
+    final key = await _apiKey();
+    final model = settings.photoModel;
+    final h = hint?.trim() ?? '';
+    final reply = await claude.send(
+      apiKey: key,
+      model: model,
+      system: Prompts.label,
+      maxTokens: 1024,
+      content: [
+        _imageBlock(jpeg),
+        {
+          'type': 'text',
+          'text': h.isEmpty ? 'この栄養成分表示をJSONで出力してください。' : '補足: $h\nこの栄養成分表示をJSONで出力してください。',
+        },
+      ],
+    );
+    await _log(reply, 'label');
+    final parsed = NutritionParser.parse(reply.text);
+    return AnalysisResult(items: parsed.items, note: parsed.note, model: model);
+  }
+
+  /// 週・月の振り返りコメント（写真解析と同じモデル。集計の JSON だけを送る）
+  Future<String> reportComment(Map<String, Object?> summary) async {
+    final key = await _apiKey();
+    final model = settings.photoModel;
+    final reply = await claude.send(
+      apiKey: key,
+      model: model,
+      system: Prompts.report,
+      maxTokens: 700,
+      content: [
+        {'type': 'text', 'text': jsonEncode(summary)},
+      ],
+    );
+    await _log(reply, 'report');
+    return reply.text.trim();
+  }
+
   /// チェーン店メニュー検索（キャッシュ優先、無ければ Sonnet + Web検索）
   Future<AnalysisResult> lookupChain({required String store, required String menu, Uint8List? photo}) async {
     final storeKey = normalizeKey(store);

@@ -52,6 +52,22 @@ PKG=$(sed -n 's/^package \(.*\)$/\1/p' "$MAIN_KT" | head -n 1)
 KT_DIR=$(dirname "$MAIN_KT")
 sed "s/__PACKAGE__/$PKG/" tool/android/MainActivity.kt > "$MAIN_KT"
 sed "s/__PACKAGE__/$PKG/" tool/android/PermissionsRationaleActivity.kt > "$KT_DIR/PermissionsRationaleActivity.kt"
+# 通知（記録忘れ）とホーム画面ウィジェット
+for f in ReminderReceiver MealWidgetProvider; do
+  sed "s/__PACKAGE__/$PKG/" "tool/android/$f.kt" > "$KT_DIR/$f.kt"
+done
+mkdir -p android/app/src/main/res/layout android/app/src/main/res/xml android/app/src/main/res/drawable android/app/src/main/res/values
+cp tool/android/res/layout/meal_widget.xml android/app/src/main/res/layout/
+cp tool/android/res/xml/meal_widget_info.xml android/app/src/main/res/xml/
+cp tool/android/res/drawable/meal_widget_bg.xml android/app/src/main/res/drawable/
+cp tool/android/res/values/meal_widget_strings.xml android/app/src/main/res/values/
+if ! grep -q 'POST_NOTIFICATIONS' "$MANIFEST"; then
+  perl -0pi -e 's#(\s*<application)#\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>$1#' "$MANIFEST"
+fi
+if ! grep -q 'ReminderReceiver' "$MANIFEST"; then
+  RECEIVERS='        <receiver android:name=".ReminderReceiver" android:exported="false"/>\n        <receiver android:name=".MealWidgetProvider" android:exported="false" android:label="食事記録">\n            <intent-filter>\n                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>\n            </intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="\@xml/meal_widget_info"/>\n        </receiver>\n'
+  perl -0pi -e "s#(\\s*</application>)#\\n${RECEIVERS}\$1#" "$MANIFEST"
+fi
 # ライブラリ
 GRADLE_KTS=android/app/build.gradle.kts
 GRADLE_GROOVY=android/app/build.gradle

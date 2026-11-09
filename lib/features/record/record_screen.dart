@@ -11,6 +11,7 @@ import '../../services/nutrition_service.dart';
 import '../result_edit/result_edit_screen.dart';
 import '../settings/api_key_widgets.dart';
 import 'alcohol_screen.dart';
+import 'frequent_screen.dart';
 
 /// 記録方法を選ぶ画面
 class RecordScreen extends StatefulWidget {
@@ -125,6 +126,32 @@ class _RecordScreenState extends State<RecordScreen> {
     await _openEditor(items: items, model: 'manual');
   }
 
+  Future<void> _label() async {
+    if (!await _ensureKey()) return;
+    final bytes = await _pickPhoto();
+    if (bytes == null) return;
+    await _analyze('栄養成分表示を読み取り中…', () => s.nutrition.readLabel(bytes, hint: _hint.text), bytes);
+  }
+
+  Future<void> _frequent() async {
+    final items = await Navigator.of(context).push<List<MealItem>>(
+      MaterialPageRoute(builder: (_) => const FrequentScreen()),
+    );
+    if (items == null || items.isEmpty || !mounted) return;
+    await _openEditor(items: items, model: 'manual');
+  }
+
+  /// 前回の同じ食事区分の内容をそのまま使う
+  Future<void> _sameAsLast() async {
+    final last = await s.db.lastMealOfType(_type, ymd(widget.date));
+    if (!mounted) return;
+    if (last == null || last.items.isEmpty) {
+      _snack('${_type.label}の記録がまだありません');
+      return;
+    }
+    await _openEditor(items: last.items, model: 'manual', note: '${jpDate(parseYmd(last.date))}の${_type.label}と同じ');
+  }
+
   Future<void> _analyze(String label, Future<AnalysisResult> Function() job, Uint8List? photo) async {
     setState(() {
       _busy = true;
@@ -212,7 +239,28 @@ class _RecordScreenState extends State<RecordScreen> {
                   onSelectionChanged: (sel) => setState(() => _type = sel.first),
                 ),
                 const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _sameAsLast,
+                        icon: const Icon(Icons.replay),
+                        label: Text('前回の${_type.label}と同じ'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _frequent,
+                        icon: const Icon(Icons.star_outline),
+                        label: const Text('よく食べるもの'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 _action(Icons.photo_camera, '写真で解析', '撮影した料理のカロリー・PFCを推定（Haiku）', _photo),
+                _action(Icons.receipt_long, '栄養成分表示を撮る', '市販品のパッケージの表示をそのまま読み取り（Haiku）', _label),
                 _action(Icons.storefront, 'チェーン店メニュー', '公式サイトの栄養成分を検索（Sonnet＋Web検索）', _chain),
                 _action(Icons.sports_bar, 'お酒', 'ビール・ハイボール・ワインなどを選んで記録（APIキー不要）', _alcohol),
                 _action(Icons.edit_note, '手入力', '料理名と栄養価を自分で入力',

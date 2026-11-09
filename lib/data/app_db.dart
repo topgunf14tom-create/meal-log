@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../core/meal_type.dart';
+import '../core/nutrition.dart';
 import '../core/strava_archive.dart';
 import 'entities.dart';
 
@@ -190,6 +192,71 @@ class AppDb {
   Future<void> deleteMeal(int id) async {
     await _db.delete('meal_items', where: 'meal_id = ?', whereArgs: [id]);
     await _db.delete('meals', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// よく食べるもの：[since] 以降に記録した料理を名前ごとにまとめ、回数の多い順。値は一番新しい記録のもの
+  Future<List<FrequentItem>> frequentItems({required String since, int limit = 40}) async {
+    final rows = await _db.rawQuery('''
+      SELECT i.*, c.cnt AS cnt, c.last_date AS last_date FROM meal_items i
+      JOIN (
+        SELECT i2.name AS name, COUNT(*) AS cnt, MAX(i2.id) AS last_id, MAX(m2.date) AS last_date
+        FROM meal_items i2 JOIN meals m2 ON m2.id = i2.meal_id
+        WHERE m2.date >= ? AND TRIM(i2.name) != ''
+        GROUP BY i2.name
+      ) c ON c.last_id = i.id
+      ORDER BY c.cnt DESC, c.last_date DESC
+      LIMIT ?''', [since, limit]);
+    return rows
+        .map((r) => FrequentItem(
+              item: MealItem.fromDbMap(r),
+              count: (r['cnt'] as num).toInt(),
+              lastDate: r['last_date'] as String? ?? '',
+            ))
+        .toList();
+  }
+
+  /// [type] の食事のうち、[onOrBefore] 以前で一番新しいもの（[excludeId] は除く）
+  Future<Meal?> lastMealOfType(MealType type, String onOrBefore, {int? excludeId}) async {
+    final rows = await _db.query(
+      'meals',
+      where: excludeId == null ? 'meal_type = ? AND date <= ?' : 'meal_type = ? AND date <= ? AND id != ?',
+      whereArgs: [type.name, onOrBefore, if (excludeId != null) excludeId],
+      orderBy: 'date DESC, created_at DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final items = await _db.query('meal_items', where: 'meal_id = ?', whereArgs: [rows.first['id']], orderBy: 'id');
+    return Meal.fromDbMap(rows.first, items.map(MealItem.fromDbMap).toList());
+  }
+
+  /// 日ごとの摂取合計（記録のある日だけ）
+  Future<Map<String, Pfc>> dailyTotals(String from, String to) async {
+    final rows = await _db.rawQuery('''
+      SELECT m.date AS date, SUM(i.kcal) AS kcal, SUM(i.protein_g) AS p, SUM(i.fat_g) AS f, SUM(i.carbs_g) AS c
+      FROM meals m JOIN meal_items i ON i.meal_id = m.id
+      WHERE m.date >= ? AND m.date <= ?
+      GROUP BY m.date''', [from, to]);
+    return {
+      for (final r in rows)
+        r['date'] as String: Pfc(
+          (r['kcal'] as num?)?.toDouble() ?? 0,
+          (r['p'] as num?)?.toDouble() ?? 0,
+          (r['f'] as num?)?.toDouble() ?? 0,
+          (r['c'] as num?)?.toDouble() ?? 0,
+        ),
+    };
+  }
+
+  /// その日に記録した食事区分
+  Future<Set<MealType>> mealTypesOn(String date) async {
+    final rows = await _db.query('meals', columns: ['meal_type'], where: 'date = ?', whereArgs: [date]);
+    return rows.map((r) => mealTypeFromName(r['meal_type'] as String? ?? '')).toSet();
+  }
+
+  Future<List<ActivityDay>> activitiesBetween(String from, String to) async {
+    final rows = await _db.query('activity_days',
+        where: 'date >= ? AND date <= ?', whereArgs: [from, to], orderBy: 'date ASC');
+    return rows.map(ActivityDay.fromDbMap).toList();
   }
 
   // ---------- 目標 ----------

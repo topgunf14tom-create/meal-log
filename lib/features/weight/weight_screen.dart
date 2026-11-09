@@ -4,6 +4,9 @@ import '../../app_services.dart';
 import '../../core/dates.dart';
 import '../../data/entities.dart';
 import '../../widgets/weight_chart.dart';
+import '../../core/forecast.dart';
+import '../../services/forecast_loader.dart';
+import '../../widgets/forecast_card.dart';
 import '../history/exercise_history_screen.dart';
 import '../inbody/inbody_history_screen.dart';
 
@@ -19,6 +22,7 @@ class _WeightScreenState extends State<WeightScreen> {
   final _kg = TextEditingController();
   int _range = 30;
   List<WeightEntry> _all = [];
+  WeightForecast? _forecast;
 
   AppServices get s => AppServices.I;
 
@@ -36,8 +40,14 @@ class _WeightScreenState extends State<WeightScreen> {
 
   Future<void> _load() async {
     final list = await s.db.weightsSince(ymd(addDays(dayOnly(DateTime.now()), -366)));
+    final today = dayOnly(DateTime.now());
+    // 今日はまだ途中なので、昨日までの14日間で見込みを出す
+    final forecast = await loadForecast(addDays(today, -14), addDays(today, -1));
     if (!mounted) return;
-    setState(() => _all = list);
+    setState(() {
+      _all = list;
+      _forecast = forecast;
+    });
   }
 
   Future<void> _pickDate() async {
@@ -153,6 +163,10 @@ class _WeightScreenState extends State<WeightScreen> {
                 textAlign: TextAlign.center,
               ),
             ),
+          if (_forecast != null) ...[
+            const SizedBox(height: 16),
+            ForecastCard(forecast: _forecast!, currentKg: last?.kg),
+          ],
           const SizedBox(height: 16),
           Text('最近の記録', style: Theme.of(context).textTheme.titleMedium),
           for (final e in recent)

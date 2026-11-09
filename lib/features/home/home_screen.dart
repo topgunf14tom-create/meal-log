@@ -16,7 +16,9 @@ import '../../widgets/activity_card.dart';
 import '../../widgets/macro_widgets.dart';
 import '../record/record_screen.dart';
 import '../result_edit/result_edit_screen.dart';
+import '../../services/home_widget_updater.dart';
 import '../history/exercise_history_screen.dart';
+import '../report/report_screen.dart';
 import '../settings/health_connect.dart';
 import '../settings/settings_screen.dart';
 import '../weight/weight_screen.dart';
@@ -44,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     s.activity.revision.addListener(_load);
     _load();
     _initHealth();
+    s.backup.autoBackupIfDue();
   }
 
   @override
@@ -55,7 +58,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _sync();
+    if (state == AppLifecycleState.resumed) {
+      _sync();
+      s.backup.autoBackupIfDue();
+      afterDataChanged();
+    }
   }
 
   Future<void> _initHealth() async {
@@ -110,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _goal = goal;
       _activity = activity;
     });
+    afterDataChanged();
   }
 
   Future<void> _dayChanged() async {
@@ -190,6 +198,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         actions: [
           IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
+          IconButton(
+            tooltip: '週・月のレポート',
+            icon: const Icon(Icons.insights_outlined),
+            onPressed: () => _open(const ReportScreen()),
+          ),
           IconButton(
             tooltip: '体重',
             icon: const Icon(Icons.monitor_weight_outlined),

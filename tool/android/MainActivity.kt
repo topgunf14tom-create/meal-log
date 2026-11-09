@@ -113,6 +113,7 @@ class MainActivity : FlutterActivity() {
             pickFile(result)
             return
         }
+        if (handleExtras(call, result)) return
         if (call.method == "openSettings") {
             try {
                 startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
@@ -163,6 +164,10 @@ class MainActivity : FlutterActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE) deliverGranted()
+        if (requestCode == NOTIF_CODE) {
+            pendingNotif?.success(notificationsAllowed())
+            pendingNotif = null
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -171,6 +176,148 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE) deliverGranted()
         if (requestCode == PICK_CODE) onFilePicked(resultCode, data)
+        if (requestCode == CREATE_CODE) onBackupCreated(resultCode, data)
+        if (requestCode == OPEN_TEXT_CODE) onTextPicked(resultCode, data)
+    }
+
+    // ---------- 通知・ウィジェット・バックアップ ----------
+    private var pendingNotif: MethodChannel.Result? = null
+    private var pendingCreate: MethodChannel.Result? = null
+    private var pendingOpenText: MethodChannel.Result? = null
+
+    private fun notificationsAllowed(): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+
+    /** ヘルスコネクト以外の機能。扱ったら true */
+    private fun handleExtras(call: MethodCall, result: MethodChannel.Result): Boolean {
+        when (call.method) {
+            "notificationsAllowed" -> result.success(notificationsAllowed())
+            "requestNotifications" -> {
+                if (notificationsAllowed() || android.os.Build.VERSION.SDK_INT < 33) {
+                    result.success(notificationsAllowed())
+                } else {
+                    pendingNotif?.success(false)
+                    pendingNotif = result
+                    requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIF_CODE)
+                }
+            }
+            "scheduleReminders" -> {
+                @Suppress("UNCHECKED_CAST")
+                val items = call.argument<List<Map<String, Any?>>>("items") ?: emptyList()
+                try {
+                    ReminderReceiver.ensureChannel(this)
+                    ReminderReceiver.reschedule(this, items)
+                    result.success(true)
+                } catch (e: Throwable) {
+                    result.error("schedule_failed", "${e.javaClass.simpleName}: ${e.message}", null)
+                }
+            }
+            "updateWidget" -> {
+                @Suppress("UNCHECKED_CAST")
+                val data = call.arguments as? Map<String, Any?> ?: emptyMap()
+                try {
+                    MealWidgetProvider.save(this, data)
+                    result.success(true)
+                } catch (e: Throwable) {
+                    result.error("widget_failed", "${e.javaClass.simpleName}: ${e.message}", null)
+                }
+            }
+            "createBackupFile" -> {
+                pendingCreate?.success(null)
+                pendingCreate = result
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_TITLE, call.argument<String>("name") ?: "meal-log-backup.json")
+                }
+                try {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(intent, CREATE_CODE)
+                } catch (e: Throwable) {
+                    pendingCreate = null
+                    result.error("create_failed", "${e.javaClass.simpleName}: ${e.message}", null)
+                }
+            }
+            "writeUri" -> {
+                val uri = android.net.Uri.parse(call.argument<String>("uri") ?: "")
+                val text = call.argument<String>("text") ?: ""
+                Thread {
+                    try {
+                        contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                        runOnUiThread { result.success(true) }
+                    } catch (e: Throwable) {
+                        runOnUiThread { result.error("write_failed", "${e.javaClass.simpleName}: ${e.message}", null) }
+                    }
+                }.start()
+            }
+            "pickTextFile" -> {
+                pendingOpenText?.success(null)
+                pendingOpenText = result
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                }
+                try {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(intent, OPEN_TEXT_CODE)
+                } catch (e: Throwable) {
+                    pendingOpenText = null
+                    result.error("pick_failed", "${e.javaClass.simpleName}: ${e.message}", null)
+                }
+            }
+            else -> return false
+        }
+        return true
+    }
+
+    private fun onBackupCreated(resultCode: Int, data: Intent?) {
+        val r = pendingCreate ?: return
+        pendingCreate = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            r.success(null)
+            return
+        }
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        } catch (_: Exception) {
+            // 永続化できない保存先でも、今回の書き込みはできる
+        }
+        var name = uri.lastPathSegment ?: ""
+        try {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) name = c.getString(0) ?: name
+            }
+        } catch (_: Exception) {
+        }
+        val provider = uri.authority ?: ""
+        r.success(mapOf("uri" to uri.toString(), "name" to name, "provider" to provider))
+    }
+
+    private fun onTextPicked(resultCode: Int, data: Intent?) {
+        val r = pendingOpenText ?: return
+        pendingOpenText = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            r.success(null)
+            return
+        }
+        Thread {
+            try {
+                val text = contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+                runOnUiThread { r.success(text) }
+            } catch (e: Throwable) {
+                runOnUiThread { r.error("read_failed", "${e.javaClass.simpleName}: ${e.message}", null) }
+            }
+        }.start()
     }
 
     // ---------- ファイル選択（Strava の書き出しの取り込み用） ----------
@@ -363,5 +510,8 @@ class MainActivity : FlutterActivity() {
         private const val REQUEST_CODE = 7301
         private const val CRASH_FILE = "last_crash.txt"
         private const val PICK_CODE = 7302
+        private const val CREATE_CODE = 7303
+        private const val OPEN_TEXT_CODE = 7304
+        private const val NOTIF_CODE = 7305
     }
 }

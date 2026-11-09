@@ -362,3 +362,14 @@ class InBodyRecord {
         createdAt: DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
       );
 }
+
+/// よく食べるもの
+class FrequentItem {
+  const FrequentItem({required this.item, required this.count, required this.lastDate});
+
+  final MealItem item;
+  final int count;
+
+  /// 最後に食べた日 yyyy-MM-dd
+  final String lastDate;
+}

@@ -34,7 +34,7 @@ $label = [string]::new([char[]]@(0x98DF, 0x4E8B, 0x8A18, 0x9332))
 $m = $m.Replace('android:label="meal_log"', "android:label=`"$label`"")
 
 # ---------- Health Connect (read weight / body fat / steps / exercise) ----------
-foreach ($perm in @('READ_WEIGHT', 'READ_BODY_FAT', 'READ_LEAN_BODY_MASS', 'READ_HEIGHT', 'READ_STEPS', 'READ_EXERCISE', 'READ_ACTIVE_CALORIES_BURNED')) {
+foreach ($perm in @('READ_WEIGHT', 'READ_BODY_FAT', 'READ_LEAN_BODY_MASS', 'READ_HEIGHT', 'READ_STEPS', 'READ_EXERCISE', 'READ_ACTIVE_CALORIES_BURNED', 'READ_DISTANCE', 'READ_HEALTH_DATA_HISTORY')) {
     if ($m -notmatch "android\.permission\.health\.$perm`"") {
         $m = [regex]::Replace($m, '(\s*<application)', "`n    <uses-permission android:name=`"android.permission.health.$perm`"/>`$1", 1)
     }
@@ -58,6 +58,22 @@ if ($m -notmatch 'PermissionsRationaleActivity') {
 "@
     $m = [regex]::Replace($m, '(\s*</application>)', "`n$rationale`$1", 1)
 }
+# Reminder notifications and the home screen widget
+if ($m -notmatch 'POST_NOTIFICATIONS') {
+    $m = [regex]::Replace($m, '(\s*<application)', "`n    <uses-permission android:name=`"android.permission.POST_NOTIFICATIONS`"/>`$1", 1)
+}
+if ($m -notmatch 'ReminderReceiver') {
+    $receivers = @"
+        <receiver android:name=".ReminderReceiver" android:exported="false"/>
+        <receiver android:name=".MealWidgetProvider" android:exported="false" android:label="$label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/meal_widget_info"/>
+        </receiver>
+"@
+    $m = [regex]::Replace($m, '(\s*</application>)', "`n$receivers`$1", 1)
+}
 Write-Utf8 $manifest $m
 
 # Kotlin: replace MainActivity with the Health Connect version and add the rationale screen
@@ -67,6 +83,14 @@ $mainSrc = (Read-Utf8 'tool\android\MainActivity.kt').Replace('__PACKAGE__', $pk
 [IO.File]::WriteAllText($mainKt.FullName, $mainSrc, $utf8)
 $ratSrc = (Read-Utf8 'tool\android\PermissionsRationaleActivity.kt').Replace('__PACKAGE__', $pkg)
 [IO.File]::WriteAllText((Join-Path $mainKt.DirectoryName 'PermissionsRationaleActivity.kt'), $ratSrc, $utf8)
+foreach ($name in @('ReminderReceiver', 'MealWidgetProvider')) {
+    $src = (Read-Utf8 "tool\android\$name.kt").Replace('__PACKAGE__', $pkg)
+    [IO.File]::WriteAllText((Join-Path $mainKt.DirectoryName "$name.kt"), $src, $utf8)
+}
+foreach ($dir in @('layout', 'xml', 'drawable', 'values')) {
+    New-Item -ItemType Directory -Force -Path "android\app\src\main\res\$dir" | Out-Null
+    Copy-Item "tool\android\res\$dir\*" "android\app\src\main\res\$dir\" -Force
+}
 
 if (Test-Path 'android\app\build.gradle.kts') {
     $g = Read-Utf8 'android\app\build.gradle.kts'

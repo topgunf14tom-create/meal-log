@@ -4,7 +4,7 @@ import '../../app_services.dart';
 import '../../core/dates.dart';
 import '../../data/entities.dart';
 import '../../widgets/goal_form.dart';
-import '../home/home_screen.dart';
+import '../shell/main_shell.dart';
 import '../settings/api_key_widgets.dart';
 
 /// 初回起動の案内（APIキー未設定のときだけ表示）
@@ -43,7 +43,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (widget.fromSettings) {
       Navigator.of(context).pop();
     } else {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainShell()));
     }
   }
 

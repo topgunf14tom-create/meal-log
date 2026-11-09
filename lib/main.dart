@@ -3,7 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_services.dart';
 import 'core/theme.dart';
-import 'features/home/home_screen.dart';
+import 'features/shell/main_shell.dart';
 import 'features/onboarding/onboarding_screen.dart';
 
 Future<void> main() async {
@@ -24,8 +24,8 @@ class MealLogApp extends StatelessWidget {
     return MaterialApp(
       title: '食事記録',
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
+      theme: buildTheme(),
+      themeMode: ThemeMode.dark,
       locale: const Locale('ja'),
       supportedLocales: const [Locale('ja'), Locale('en')],
       localizationsDelegates: const [
@@ -33,7 +33,7 @@ class MealLogApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: showOnboarding ? const OnboardingScreen() : const HomeScreen(),
+      home: showOnboarding ? const OnboardingScreen() : const MainShell(),
     );
   }
 }

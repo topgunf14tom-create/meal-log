@@ -18,10 +18,11 @@ import '../record/record_screen.dart';
 import '../result_edit/result_edit_screen.dart';
 import '../../services/home_widget_updater.dart';
 import '../history/exercise_history_screen.dart';
-import '../report/report_screen.dart';
 import '../settings/health_connect.dart';
 import '../settings/settings_screen.dart';
-import '../weight/weight_screen.dart';
+
+/// タブでホームに戻ったときに読み直すための合図。
+final homeReload = ValueNotifier<int>(0);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     s.activity.revision.addListener(_load);
+    homeReload.addListener(_load);
     _load();
     _initHealth();
     s.backup.autoBackupIfDue();
@@ -53,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     s.activity.revision.removeListener(_load);
+    homeReload.removeListener(_load);
     super.dispose();
   }
 
@@ -198,16 +201,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         actions: [
           IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
-          IconButton(
-            tooltip: '週・月のレポート',
-            icon: const Icon(Icons.insights_outlined),
-            onPressed: () => _open(const ReportScreen()),
-          ),
-          IconButton(
-            tooltip: '体重',
-            icon: const Icon(Icons.monitor_weight_outlined),
-            onPressed: () => _open(const WeightScreen()),
-          ),
           IconButton(
             tooltip: '設定',
             icon: const Icon(Icons.settings_outlined),

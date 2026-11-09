@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../app_services.dart';
+import '../../core/theme.dart';
 import '../../core/dates.dart';
 import '../../core/forecast.dart';
 import '../../core/nutrition.dart';
@@ -282,7 +283,7 @@ class _ReportScreenState extends State<ReportScreen> {
               children: [
                 cell('1日平均の摂取', '${r.avgIntake.round()}kcal'),
                 cell('目標との差', '${diff >= 0 ? '+' : ''}${diff.round()}kcal',
-                    color: diff > 0 ? const Color(0xFFE65100) : const Color(0xFF2E7D5B)),
+                    color: diff > 0 ? AppColors.over : AppColors.success),
                 cell('記録した日', '${r.recorded.length}/${r.days.length}日'),
               ],
             ),
@@ -347,7 +348,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                       color: !d.recorded
                                           ? Colors.transparent
                                           : d.intake!.kcal > d.target
-                                              ? const Color(0xFFFFA726)
+                                              ? AppColors.over
                                               : theme.colorScheme.primary,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
@@ -425,9 +426,9 @@ class _ReportScreenState extends State<ReportScreen> {
           children: [
             Text('1日平均のPFC', style: theme.textTheme.labelLarge),
             const SizedBox(height: 4),
-            row('たんぱく質', pfc.p, target.p, ratio.p, r.goal.pRatio, const Color(0xFFE57373)),
-            row('脂質', pfc.f, target.f, ratio.f, r.goal.fRatio, const Color(0xFFFFB74D)),
-            row('炭水化物', pfc.c, target.c, ratio.c, r.goal.cRatio, const Color(0xFF64B5F6)),
+            row('たんぱく質', pfc.p, target.p, ratio.p, r.goal.pRatio, MacroColors.protein),
+            row('脂質', pfc.f, target.f, ratio.f, r.goal.fRatio, MacroColors.fat),
+            row('炭水化物', pfc.c, target.c, ratio.c, r.goal.cRatio, MacroColors.carbs),
           ],
         ),
       ),

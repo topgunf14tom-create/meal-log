@@ -7,11 +7,11 @@ import '../core/inbody.dart';
   final scheme = Theme.of(context).colorScheme;
   switch (level) {
     case -1:
-      return (label: '低い', color: const Color(0xFF1E88E5));
+      return (label: '低い', color: const Color(0xFF8AA1D8));
     case 1:
-      return (label: '高い', color: const Color(0xFFE53935));
+      return (label: '高い', color: const Color(0xFFE0A49C));
     case 0:
-      return (label: '標準', color: const Color(0xFF2E7D5B));
+      return (label: '標準', color: const Color(0xFFB3C79A));
     default:
       return (label: '', color: scheme.onSurfaceVariant);
   }

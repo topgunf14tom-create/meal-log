@@ -32,3 +32,11 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Fustat
+      fonts:
+        - asset: assets/fonts/Fustat-Regular.ttf
+        - asset: assets/fonts/Fustat-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Fustat-Bold.ttf
+          weight: 700

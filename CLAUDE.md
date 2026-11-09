@@ -32,6 +32,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 | カメラ/画像選択 | image_picker |
 | 画像圧縮 | flutter_image_compress |
 | APIキー保存 | flutter_secure_storage |
+| テーマ | ダーク固定（Astryx の Gothic テーマの色・角丸を `lib/core/theme.dart` に移植）。英数字は同梱の Fustat（assets/fonts、OFL）、日本語は端末のフォント |
 | グラフ | CustomPaint（自前描画。外部パッケージ依存を減らすため） |
 | 日付 | 自前の日付ヘルパー（lib/core/dates.dart）＋flutter_localizations（ja） |
 | QR読み取り | mobile_scanner（InBody 用紙の QR） |
@@ -60,6 +61,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
    - ページ4：目標カロリー・PFC比率の初期設定（スキップ可）
    - 「あとで設定」を選んだ場合は手入力のみ使える状態でホームへ。写真解析を押したときに再度キー入力を促す
    - 設定画面からいつでも再表示・キー変更・キー削除ができる
+0-1. **画面下のタブ**（`lib/features/shell/main_shell.dart`）：ホーム・体重・体組成・運動・レポート。ホームは日付を保つため作り直さず、戻ったときに読み直す。ほかのタブは開くたびに作り直す。設定はホームの右上
 1. **ホーム（今日）**
    - 日付切替（前日/翌日）
    - 摂取カロリー / 目標カロリー（残り kcal）

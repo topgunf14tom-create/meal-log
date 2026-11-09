@@ -7,8 +7,6 @@ import '../../widgets/weight_chart.dart';
 import '../../core/forecast.dart';
 import '../../services/forecast_loader.dart';
 import '../../widgets/forecast_card.dart';
-import '../history/exercise_history_screen.dart';
-import '../inbody/inbody_history_screen.dart';
 
 class WeightScreen extends StatefulWidget {
   const WeightScreen({super.key});
@@ -73,11 +71,6 @@ class _WeightScreenState extends State<WeightScreen> {
     await _load();
   }
 
-  Future<void> _openInBody() async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InBodyHistoryScreen()));
-    await _load();
-  }
-
   Future<void> _delete(WeightEntry e) async {
     await s.db.deleteWeight(e.date);
     await _load();
@@ -94,19 +87,6 @@ class _WeightScreenState extends State<WeightScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('体重'),
-        actions: [
-          IconButton(
-            tooltip: '運動の記録',
-            icon: const Icon(Icons.directions_run),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const ExerciseHistoryScreen())),
-          ),
-          TextButton.icon(
-            onPressed: _openInBody,
-            icon: const Icon(Icons.accessibility_new),
-            label: const Text('体組成'),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

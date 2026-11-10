@@ -21,3 +21,6 @@ const _weekdays = ['月', '火', '水', '木', '金', '土', '日'];
 String jpDate(DateTime d) => '${d.month}/${d.day}(${_weekdays[d.weekday - 1]})';
 
 String shortDate(DateTime d) => '${d.month}/${d.day}';
+
+/// 1日の区切り時刻を考慮した「今日」。[startHour] 時より前は前日扱い（例 4 なら 28時区切り）
+DateTime logicalDay(DateTime now, int startHour) => dayOnly(now.subtract(Duration(hours: startHour)));

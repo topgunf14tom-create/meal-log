@@ -33,6 +33,11 @@ class MealItem {
     this.confidence = 'medium',
     this.sourceType = 'estimate',
     this.sourceUrl,
+    this.foodRef,
+    this.sizeClass,
+    this.ratio = 1,
+    this.detail,
+    this.pfcUnknown = false,
   });
 
   final int? id;
@@ -52,6 +57,21 @@ class MealItem {
   final String sourceType;
   final String? sourceUrl;
 
+  /// 食品DBの参照（s:成分表ID / c:チェーン / i:居酒屋 / b:朝食 / u:登録食品）。値は記録時点で固定し、DB更新で再計算しない
+  final String? foodRef;
+
+  /// 量感クラス 0=少なめ 1=普通 2=多め 3=大盛（写真判定・成分表の食品）
+  final int? sizeClass;
+
+  /// 食べた割合（取り分け・残し。値はすでに掛けてある）
+  final double ratio;
+
+  /// 計算の内訳（調理油の加算・PFC補完など）
+  final String? detail;
+
+  /// kcal のみ分かり PFC が不明（P・F・C は 0 として記録）
+  final bool pfcUnknown;
+
   static const manual = MealItem(name: '', confidence: 'high', sourceType: 'manual');
 
   /// 量を factor 倍した値（kcal・PFC・g を按分）
@@ -68,6 +88,32 @@ class MealItem {
         confidence: confidence,
         sourceType: sourceType,
         sourceUrl: sourceUrl,
+        foodRef: foodRef,
+        sizeClass: sizeClass,
+        ratio: ratio,
+        detail: detail,
+        pfcUnknown: pfcUnknown,
+      );
+
+  /// 一部の項目だけ変えた複製
+  MealItem copyWith({String? name, double? ratio, String? detail, String? sourceType, String? confidence}) => MealItem(
+        id: id,
+        name: name ?? this.name,
+        amount: amount,
+        unit: unit,
+        grams: grams,
+        kcal: kcal,
+        protein: protein,
+        fat: fat,
+        carbs: carbs,
+        confidence: confidence ?? this.confidence,
+        sourceType: sourceType ?? this.sourceType,
+        sourceUrl: sourceUrl,
+        foodRef: foodRef,
+        sizeClass: sizeClass,
+        ratio: ratio ?? this.ratio,
+        detail: detail ?? this.detail,
+        pfcUnknown: pfcUnknown,
       );
 
   factory MealItem.fromJson(Map<String, dynamic> j) {
@@ -88,6 +134,11 @@ class MealItem {
       confidence: _confidences.contains(conf) ? conf : 'medium',
       sourceType: _sourceTypes.contains(src) ? src : 'estimate',
       sourceUrl: (url.isEmpty || url == 'null') ? null : url,
+      foodRef: _str(j['food_ref']),
+      sizeClass: (j['size_class'] as num?)?.toInt(),
+      ratio: toDouble(j['ratio'], 1),
+      detail: _str(j['detail']),
+      pfcUnknown: j['pfc_unknown'] == true || j['pfc_unknown'] == 1,
     );
   }
 
@@ -103,6 +154,11 @@ class MealItem {
         'confidence': confidence,
         'source_type': sourceType,
         'source_url': sourceUrl,
+        if (foodRef != null) 'food_ref': foodRef,
+        if (sizeClass != null) 'size_class': sizeClass,
+        if (ratio != 1) 'ratio': ratio,
+        if (detail != null) 'detail': detail,
+        if (pfcUnknown) 'pfc_unknown': true,
       };
 
   Map<String, Object?> toDbMap(int mealId) => {
@@ -118,6 +174,11 @@ class MealItem {
         'confidence': confidence,
         'source_type': sourceType,
         'source_url': sourceUrl,
+        'food_ref': foodRef,
+        'size_class': sizeClass,
+        'ratio': ratio,
+        'detail': detail,
+        'pfc_unknown': pfcUnknown ? 1 : 0,
       };
 
   factory MealItem.fromDbMap(Map<String, Object?> m) => MealItem(
@@ -133,7 +194,17 @@ class MealItem {
         confidence: m['confidence'] as String? ?? 'medium',
         sourceType: m['source_type'] as String? ?? 'estimate',
         sourceUrl: m['source_url'] as String?,
+        foodRef: m['food_ref'] as String?,
+        sizeClass: (m['size_class'] as num?)?.toInt(),
+        ratio: toDouble(m['ratio'], 1),
+        detail: m['detail'] as String?,
+        pfcUnknown: (m['pfc_unknown'] as num?)?.toInt() == 1,
       );
+}
+
+String? _str(Object? v) {
+  final s = v?.toString().trim();
+  return (s == null || s.isEmpty || s == 'null') ? null : s;
 }
 
 /// 1回の食事（複数の料理を含む）
@@ -372,4 +443,103 @@ class FrequentItem {
 
   /// 最後に食べた日 yyyy-MM-dd
   final String lastDate;
+}
+
+/// 「いつもの」：ホームから1タップで記録し直せる食事（単品・組み合わせ）
+class Favorite {
+  const Favorite({this.id, required this.name, required this.items, this.useCount = 0, this.mealType});
+
+  final int? id;
+  final String name;
+  final List<MealItem> items;
+  final int useCount;
+
+  /// 登録したときの食事区分（null なら時刻から推定）
+  final String? mealType;
+
+  double get kcal => items.fold(0.0, (a, i) => a + i.kcal);
+
+  Map<String, Object?> toDbMap() => {
+        'name': name,
+        'items_json': jsonEncode(items.map((e) => e.toJson()).toList()),
+        'use_count': useCount,
+        'meal_type': mealType,
+      };
+
+  factory Favorite.fromDbMap(Map<String, Object?> m) {
+    var items = <MealItem>[];
+    try {
+      final list = jsonDecode(m['items_json'] as String? ?? '[]') as List;
+      items = list.whereType<Map>().map((e) => MealItem.fromJson(e.cast<String, dynamic>())).toList();
+    } catch (_) {}
+    return Favorite(
+      id: m['id'] as int?,
+      name: m['name'] as String? ?? '',
+      items: items,
+      useCount: (m['use_count'] as num?)?.toInt() ?? 0,
+      mealType: m['meal_type'] as String?,
+    );
+  }
+}
+
+/// 個人DB（自分で登録した食品・栄養成分表示の読み取り結果・JAN）
+class UserFood {
+  const UserFood({
+    this.id,
+    required this.name,
+    this.jan,
+    required this.kcal,
+    this.protein,
+    this.fat,
+    this.carbs,
+    this.salt,
+    this.unitLabel = '1食',
+    this.grams,
+    this.per100g = false,
+    this.estimated = false,
+  });
+
+  final int? id;
+  final String name;
+  final String? jan;
+  final double kcal;
+  final double? protein;
+  final double? fat;
+  final double? carbs;
+  final double? salt;
+  final String unitLabel;
+  final double? grams;
+  final bool per100g;
+
+  /// 推定値で登録したもの（町田商店の「いつもの注文」など）
+  final bool estimated;
+
+  Map<String, Object?> toDbMap() => {
+        'name': name,
+        'jan': jan,
+        'kcal': kcal,
+        'protein_g': protein,
+        'fat_g': fat,
+        'carbs_g': carbs,
+        'salt_g': salt,
+        'unit_label': unitLabel,
+        'grams': grams,
+        'per100g': per100g ? 1 : 0,
+        'estimated': estimated ? 1 : 0,
+      };
+
+  factory UserFood.fromDbMap(Map<String, Object?> m) => UserFood(
+        id: m['id'] as int?,
+        name: m['name'] as String? ?? '',
+        jan: m['jan'] as String?,
+        kcal: toDouble(m['kcal']),
+        protein: toDoubleOrNull(m['protein_g']),
+        fat: toDoubleOrNull(m['fat_g']),
+        carbs: toDoubleOrNull(m['carbs_g']),
+        salt: toDoubleOrNull(m['salt_g']),
+        unitLabel: m['unit_label'] as String? ?? '1食',
+        grams: toDoubleOrNull(m['grams']),
+        per100g: (m['per100g'] as num?)?.toInt() == 1,
+        estimated: (m['estimated'] as num?)?.toInt() == 1,
+      );
 }

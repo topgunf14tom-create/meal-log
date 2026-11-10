@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../app_services.dart';
 import '../../core/dates.dart';
@@ -32,13 +33,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  DateTime _day = dayOnly(DateTime.now());
+  late DateTime _day = _today();
   List<Meal> _meals = [];
+  List<Favorite> _favorites = [];
   Goal? _goal;
   ActivityDay? _activity;
   bool _healthAvailable = false;
 
   AppServices get s => AppServices.I;
+
+  /// 1日の区切り時刻を考慮した今日
+  DateTime _today() => logicalDay(DateTime.now(), AppServices.I.settings.dayStartHour);
 
   @override
   void initState() {
@@ -114,8 +119,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final meals = await s.db.mealsOn(d);
     final goal = await s.db.goalOn(d);
     final activity = await s.db.activityOn(d);
+    final favorites = await s.db.favorites();
     if (!mounted) return;
     setState(() {
+      _favorites = favorites;
       _meals = meals;
       _goal = goal;
       _activity = activity;
@@ -148,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       initialDate: _day,
       firstDate: DateTime(2020),
-      lastDate: addDays(dayOnly(DateTime.now()), 1),
+      lastDate: addDays(_today(), 1),
     );
     if (picked != null) {
       setState(() => _day = dayOnly(picked));
@@ -179,9 +186,87 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _load();
   }
 
+  /// 「いつもの」を1タップで記録（取り消しはスナックバーから）
+  Future<void> _quickLog(Favorite f) async {
+    final type = guessMealType(DateTime.now());
+    final id = await s.db.saveMeal(Meal(
+      date: ymd(_day),
+      type: type,
+      createdAt: DateTime.now(),
+      modelUsed: 'favorite',
+      note: 'いつもの「${f.name}」',
+      items: f.items,
+    ));
+    if (f.id != null) await s.db.bumpFavorite(f.id!);
+    await s.foods.recordUsage(f.items);
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${type.label}に「${f.name}」を記録しました（${kcal0(f.kcal)} kcal）'),
+      action: SnackBarAction(
+        label: '取り消す',
+        onPressed: () async {
+          await s.db.deleteMeal(id);
+          await _load();
+        },
+      ),
+    ));
+  }
+
+  Future<void> _deleteFavorite(Favorite f) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('「${f.name}」をいつものから外しますか？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('キャンセル')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('外す')),
+        ],
+      ),
+    );
+    if (ok != true || f.id == null) return;
+    await s.db.deleteFavorite(f.id!);
+    await _load();
+  }
+
+  /// 1日の記録をプレーンテキストで共有・コピー（スクリーンショットの代わり）
+  Future<void> _shareText() async {
+    final goal = _goal;
+    if (goal == null) return;
+    final healthOn = s.settings.healthEnabled;
+    final burn = (healthOn && s.settings.addBurnToGoal) ? (_activity?.totalKcal ?? 0) : 0.0;
+    final text = dayText(day: _day, meals: _meals, goal: goal, burn: burn);
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('1日の記録（テキスト）'),
+        content: SingleChildScrollView(child: SelectableText(text, style: const TextStyle(fontSize: 12))),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (c.mounted) Navigator.pop(c);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('コピーしました')));
+              }
+            },
+            child: const Text('コピー'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(c);
+              await SharePlus.instance.share(ShareParams(text: text));
+            },
+            child: const Text('共有'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isToday = ymd(_day) == ymd(DateTime.now());
+    final isToday = ymd(_day) == ymd(_today());
     final total = Pfc.sum(_meals.expand((m) => m.items));
     final goal = _goal;
     final healthOn = s.settings.healthEnabled;
@@ -201,6 +286,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         actions: [
           IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
+          IconButton(
+            tooltip: 'テキストで共有',
+            icon: const Icon(Icons.ios_share),
+            onPressed: _shareText,
+          ),
           IconButton(
             tooltip: '設定',
             icon: const Icon(Icons.settings_outlined),
@@ -244,6 +334,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                   _PfcCard(total: total, goal: goal),
                   const SizedBox(height: 12),
+                  if (_favorites.isNotEmpty) ...[
+                    _FavoritesCard(favorites: _favorites, onTap: _quickLog, onLongPress: _deleteFavorite),
+                    const SizedBox(height: 12),
+                  ],
                   for (final type in MealType.values)
                     _MealSection(
                       type: type,
@@ -256,6 +350,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
     );
   }
+}
+
+/// 「いつもの」：検索なしで1タップ記録
+class _FavoritesCard extends StatelessWidget {
+  const _FavoritesCard({required this.favorites, required this.onTap, required this.onLongPress});
+
+  final List<Favorite> favorites;
+  final void Function(Favorite) onTap;
+  final void Function(Favorite) onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('いつもの（タップで記録・長押しで外す）', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final f in favorites)
+                  GestureDetector(
+                    onLongPress: () => onLongPress(f),
+                    child: ActionChip(
+                      avatar: const Icon(Icons.bolt, size: 16),
+                      label: Text('${f.name}  ${kcal0(f.kcal)}kcal'),
+                      onPressed: () => onTap(f),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 1日の記録のテキスト（品目・kcal・PFC・合計・残り予算）
+String dayText({required DateTime day, required List<Meal> meals, required Goal goal, double burn = 0}) {
+  final b = StringBuffer('【${day.year}/${jpDate(day)} の食事】\n');
+  for (final type in MealType.values) {
+    final list = meals.where((m) => m.type == type).toList();
+    if (list.isEmpty) continue;
+    final sub = Pfc.sum(list.expand((m) => m.items));
+    b.writeln('■${type.label}（${kcal0(sub.kcal)} kcal）');
+    for (final i in list.expand((m) => m.items)) {
+      final pfc = i.pfcUnknown ? 'PFC不明' : 'P${g1(i.protein)} F${g1(i.fat)} C${g1(i.carbs)}';
+      b.writeln('・${i.name} ${kcal0(i.kcal)}kcal $pfc${i.sourceType == 'estimate' ? '（推定）' : ''}');
+    }
+  }
+  final total = Pfc.sum(meals.expand((m) => m.items));
+  final target = goal.targetKcal + burn.roundToDouble();
+  final t = targetGrams(goal);
+  b.writeln('合計 ${kcal0(total.kcal)} kcal  P${g1(total.p)} F${g1(total.f)} C${g1(total.c)}');
+  b.writeln('目標 ${kcal0(target)} kcal${burn > 0 ? '（消費 ${kcal0(burn)} を上乗せ）' : ''}  P${g1(t.p)} F${g1(t.f)} C${g1(t.c)}');
+  final rest = target - total.kcal;
+  b.write(rest >= 0 ? '残り ${kcal0(rest)} kcal・脂質 ${g1(t.f - total.f)} g' : '${kcal0(-rest)} kcal オーバー');
+  return b.toString();
 }
 
 class _HealthPromptCard extends StatelessWidget {

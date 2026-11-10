@@ -51,6 +51,12 @@ class AppSettings {
         searchUsd: _d('price_search', 0.01),
       );
 
+  /// 1日の区切り時刻（0〜6時。4なら翌4時までを当日扱い）
+  int get dayStartHour {
+    final v = _i('day_start_hour', 0);
+    return v < 0 ? 0 : (v > 6 ? 6 : v);
+  }
+
   // 初回案内
   bool get onboardingDone => _values['onboarding_done'] == 'true';
 

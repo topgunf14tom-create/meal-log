@@ -106,6 +106,32 @@ if (Test-Path 'android\app\build.gradle.kts') {
     }
 }
 
+# 栄養成分表示の端末OCR（ML Kit の日本語モデル）
+if (Test-Path 'android\app\build.gradle.kts') {
+    $g = Read-Utf8 'android\app\build.gradle.kts'
+    if ($g -notmatch 'text-recognition-japanese') {
+        $g += "`ndependencies {`n    implementation(`"com.google.mlkit:text-recognition-japanese:16.0.1`")`n}`n"
+        Write-Utf8 'android\app\build.gradle.kts' $g
+    }
+} elseif (Test-Path 'android\app\build.gradle') {
+    $g = Read-Utf8 'android\app\build.gradle'
+    if ($g -notmatch 'text-recognition-japanese') {
+        $g += "`ndependencies {`n    implementation `"com.google.mlkit:text-recognition-japanese:16.0.1`"`n}`n"
+        Write-Utf8 'android\app\build.gradle' $g
+    }
+}
+
+# R8：ヘルスコネクトのクラスを残し、ML Kit の使わない言語のクラスが無くても止めない
+$proguard = 'android\app\proguard-rules.pro'
+$pg = if (Test-Path $proguard) { Read-Utf8 $proguard } else { '' }
+if ($pg -notmatch 'androidx.health') {
+    $pg += "-keep class androidx.health.** { *; }`n-keep class android.health.connect.** { *; }`n-dontwarn androidx.health.**`n"
+}
+if ($pg -notmatch 'mlkit.vision.text.chinese') {
+    $pg += "-dontwarn com.google.mlkit.vision.text.chinese.**`n-dontwarn com.google.mlkit.vision.text.devanagari.**`n-dontwarn com.google.mlkit.vision.text.korean.**`n-keep class com.google.mlkit.vision.text.japanese.** { *; }`n"
+}
+Write-Utf8 $proguard $pg
+
 foreach ($f in @('android\app\build.gradle.kts', 'android\app\build.gradle')) {
     if (Test-Path $f) {
         $g = Read-Utf8 $f

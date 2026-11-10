@@ -77,10 +77,21 @@ elif [ -f "$GRADLE_GROOVY" ] && ! grep -q 'connect-client' "$GRADLE_GROOVY"; the
   printf '\ndependencies {\n    implementation "androidx.health.connect:connect-client:1.1.0"\n    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"\n}\n' >> "$GRADLE_GROOVY"
 fi
 
+# 栄養成分表示の端末OCR（ML Kit の日本語モデル）
+if [ -f "$GRADLE_KTS" ] && ! grep -q 'text-recognition-japanese' "$GRADLE_KTS"; then
+  printf '\ndependencies {\n    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")\n}\n' >> "$GRADLE_KTS"
+elif [ -f "$GRADLE_GROOVY" ] && ! grep -q 'text-recognition-japanese' "$GRADLE_GROOVY"; then
+  printf '\ndependencies {\n    implementation "com.google.mlkit:text-recognition-japanese:16.0.1"\n}\n' >> "$GRADLE_GROOVY"
+fi
+
 # リリースビルドの縮小（R8）でヘルスコネクトの内部クラスが消されないようにする
 PROGUARD=android/app/proguard-rules.pro
 if ! grep -qs 'androidx.health' "$PROGUARD"; then
   printf '%s\n' '-keep class androidx.health.** { *; }' '-keep class android.health.connect.** { *; }' '-dontwarn androidx.health.**' >> "$PROGUARD"
+fi
+# ML Kit の文字認識：使わない言語（中国語・デーヴァナーガリー・韓国語）のクラスが無くても R8 で止めない
+if ! grep -qs 'mlkit.vision.text.chinese' "$PROGUARD"; then
+  printf '%s\n' '-dontwarn com.google.mlkit.vision.text.chinese.**' '-dontwarn com.google.mlkit.vision.text.devanagari.**' '-dontwarn com.google.mlkit.vision.text.korean.**' '-keep class com.google.mlkit.vision.text.japanese.** { *; }' >> "$PROGUARD"
 fi
 
 # minSdk 26

@@ -23,6 +23,55 @@ class AppDb {
     'settings',
     'inbody_results',
     'activity_days',
+    'user_foods',
+    'food_usage',
+    'favorites',
+  ];
+
+  /// 個人DB（自分で登録した食品・ラベル読み取り・JAN）
+  static const _userFoodsTable = '''CREATE TABLE user_foods(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      jan TEXT,
+      kcal REAL NOT NULL,
+      protein_g REAL,
+      fat_g REAL,
+      carbs_g REAL,
+      salt_g REAL,
+      unit_label TEXT NOT NULL,
+      grams REAL,
+      per100g INTEGER NOT NULL DEFAULT 0,
+      estimated INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL)''';
+
+  /// 食品ごとの利用履歴（候補の並び替えと、量感クラスの前回値）
+  static const _foodUsageTable = '''CREATE TABLE food_usage(
+      food_ref TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      last_size_class INTEGER,
+      last_used TEXT NOT NULL)''';
+
+  static const _favoritesTable = '''CREATE TABLE favorites(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      use_count INTEGER NOT NULL DEFAULT 0,
+      meal_type TEXT,
+      created_at TEXT NOT NULL)''';
+
+  /// 写真の再利用（写真のハッシュ → 確定した内容）
+  static const _photoHashTable = '''CREATE TABLE photo_hashes(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hash TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      created_at TEXT NOT NULL)''';
+
+  static const _v5Tables = [
+    _userFoodsTable,
+    'CREATE INDEX idx_user_foods_jan ON user_foods(jan)',
+    _foodUsageTable,
+    _favoritesTable,
+    _photoHashTable,
   ];
 
   static const _activityTable = '''CREATE TABLE activity_days(
@@ -88,7 +137,12 @@ class AppDb {
       carbs_g REAL NOT NULL,
       confidence TEXT NOT NULL,
       source_type TEXT NOT NULL,
-      source_url TEXT)''',
+      source_url TEXT,
+      food_ref TEXT,
+      size_class INTEGER,
+      ratio REAL NOT NULL DEFAULT 1,
+      detail TEXT,
+      pfc_unknown INTEGER NOT NULL DEFAULT 0)''',
     '''CREATE TABLE weights(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL UNIQUE,
@@ -128,13 +182,14 @@ class AppDb {
     _activityTable,
     _stravaTable,
     'CREATE INDEX idx_strava_start ON strava_activities(start_ms)',
+    ..._v5Tables,
   ];
 
   Future<void> open() async {
     final dir = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dir, 'meal_log.db'),
-      version: 4,
+      version: 5,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         for (final sql in _schema) {
@@ -154,6 +209,16 @@ class AppDb {
         if (oldVersion < 4) {
           await db.execute(_stravaTable);
           await db.execute('CREATE INDEX idx_strava_start ON strava_activities(start_ms)');
+        }
+        if (oldVersion < 5) {
+          await db.execute('ALTER TABLE meal_items ADD COLUMN food_ref TEXT');
+          await db.execute('ALTER TABLE meal_items ADD COLUMN size_class INTEGER');
+          await db.execute('ALTER TABLE meal_items ADD COLUMN ratio REAL NOT NULL DEFAULT 1');
+          await db.execute('ALTER TABLE meal_items ADD COLUMN detail TEXT');
+          await db.execute('ALTER TABLE meal_items ADD COLUMN pfc_unknown INTEGER NOT NULL DEFAULT 0');
+          for (final sql in _v5Tables) {
+            await db.execute(sql);
+          }
         }
       },
     );
@@ -440,6 +505,102 @@ class AppDb {
   Future<void> setSetting(String key, String value) async {
     await _db.insert('settings', {'key': key, 'value': value},
         conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  // ---------- 個人DB・利用履歴・いつもの・写真の再利用 ----------
+
+  Future<List<UserFood>> userFoods() async {
+    final rows = await _db.query('user_foods', orderBy: 'id DESC');
+    return rows.map(UserFood.fromDbMap).toList();
+  }
+
+  /// 同じ JAN があれば上書き。保存した id を返す
+  Future<int> saveUserFood(UserFood f) async {
+    final row = {...f.toDbMap(), 'created_at': DateTime.now().toIso8601String()};
+    if (f.id != null) {
+      await _db.update('user_foods', row, where: 'id = ?', whereArgs: [f.id]);
+      return f.id!;
+    }
+    if (f.jan != null && f.jan!.isNotEmpty) {
+      final ex = await _db.query('user_foods', columns: ['id'], where: 'jan = ?', whereArgs: [f.jan], limit: 1);
+      if (ex.isNotEmpty) {
+        final id = ex.first['id'] as int;
+        await _db.update('user_foods', row, where: 'id = ?', whereArgs: [id]);
+        return id;
+      }
+    }
+    return _db.insert('user_foods', row);
+  }
+
+  Future<void> deleteUserFood(int id) async {
+    await _db.delete('user_foods', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// food_ref → (回数, 前回の量感クラス)
+  Future<Map<String, ({int count, int? lastClass})>> foodUsage() async {
+    final rows = await _db.query('food_usage');
+    return {
+      for (final r in rows)
+        r['food_ref'] as String: (
+          count: (r['count'] as num?)?.toInt() ?? 0,
+          lastClass: (r['last_size_class'] as num?)?.toInt(),
+        ),
+    };
+  }
+
+  /// 記録した食品の利用回数を1増やし、量感クラスを覚える
+  Future<void> bumpFoodUsage(String ref, int? sizeClass) async {
+    final now = DateTime.now().toIso8601String();
+    final n = await _db.rawUpdate(
+      'UPDATE food_usage SET count = count + 1, last_size_class = COALESCE(?, last_size_class), last_used = ? WHERE food_ref = ?',
+      [sizeClass, now, ref],
+    );
+    if (n == 0) {
+      await _db.insert('food_usage', {'food_ref': ref, 'count': 1, 'last_size_class': sizeClass, 'last_used': now});
+    }
+  }
+
+  Future<List<Favorite>> favorites() async {
+    final rows = await _db.query('favorites', orderBy: 'use_count DESC, id DESC');
+    return rows.map(Favorite.fromDbMap).toList();
+  }
+
+  Future<int> saveFavorite(Favorite f) =>
+      _db.insert('favorites', {...f.toDbMap(), 'created_at': DateTime.now().toIso8601String()});
+
+  Future<void> bumpFavorite(int id) async {
+    await _db.rawUpdate('UPDATE favorites SET use_count = use_count + 1 WHERE id = ?', [id]);
+  }
+
+  Future<void> deleteFavorite(int id) async {
+    await _db.delete('favorites', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> savePhotoHash(String hash, List<MealItem> items) async {
+    await _db.insert('photo_hashes', {
+      'hash': hash,
+      'items_json': jsonEncode(items.map((e) => e.toJson()).toList()),
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    // 古いものは300件を超えたら消す
+    await _db.rawDelete(
+        'DELETE FROM photo_hashes WHERE id NOT IN (SELECT id FROM photo_hashes ORDER BY id DESC LIMIT 300)');
+  }
+
+  /// 新しい順に (hash, items)
+  Future<List<(String, List<MealItem>)>> photoHashes() async {
+    final rows = await _db.query('photo_hashes', orderBy: 'id DESC', limit: 300);
+    final out = <(String, List<MealItem>)>[];
+    for (final r in rows) {
+      try {
+        final list = jsonDecode(r['items_json'] as String) as List;
+        out.add((
+          r['hash'] as String,
+          list.whereType<Map>().map((e) => MealItem.fromJson(e.cast<String, dynamic>())).toList(),
+        ));
+      } catch (_) {}
+    }
+    return out;
   }
 
   // ---------- Strava ----------

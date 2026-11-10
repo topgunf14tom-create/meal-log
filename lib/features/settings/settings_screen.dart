@@ -13,6 +13,7 @@ import '../../widgets/goal_form.dart';
 import '../onboarding/onboarding_screen.dart';
 import 'api_key_widgets.dart';
 import 'backup_reminder_section.dart';
+import 'food_db_section.dart';
 import 'health_connect.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -315,6 +316,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
 
+          _section('記録'),
+          const RecordPrefsSection(),
+
+          _section('食品データベース'),
+          const FoodDbSection(),
+
           _section('ヘルスコネクト'),
           _healthSection(),
 
@@ -385,9 +392,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           _section('モデル'),
-          _text(_photoModel, '写真解析（通常）'),
+          _text(_photoModel, '写真判定・ラベル転記（Haiku 推奨）'),
           _text(_chainModel, 'チェーン店検索'),
-          _text(_reModel, '再解析'),
+          _text(_reModel, '再判定（手動で選んだときだけ）'),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(onPressed: _resetModels, child: const Text('初期値に戻す')),

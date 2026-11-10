@@ -17,10 +17,14 @@ class PriceTable {
   final double searchUsd;
 
   /// モデルIDに "haiku" を含めば Haiku 単価、それ以外は Sonnet 単価で計算する。
-  double costUsd(String model, int inputTokens, int outputTokens, int webSearches) {
+  /// [inputTokens] はキャッシュ分を含む合計。キャッシュ書き込みは入力単価の1.25倍、読み込みは0.1倍で計算する
+  double costUsd(String model, int inputTokens, int outputTokens, int webSearches,
+      {int cacheWriteTokens = 0, int cacheReadTokens = 0}) {
     final isHaiku = model.toLowerCase().contains('haiku');
     final pin = isHaiku ? haikuIn : sonnetIn;
     final pout = isHaiku ? haikuOut : sonnetOut;
-    return inputTokens / 1e6 * pin + outputTokens / 1e6 * pout + webSearches * searchUsd;
+    final plain = inputTokens - cacheWriteTokens - cacheReadTokens;
+    final input = (plain < 0 ? 0 : plain) + cacheWriteTokens * 1.25 + cacheReadTokens * 0.1;
+    return input / 1e6 * pin + outputTokens / 1e6 * pout + webSearches * searchUsd;
   }
 }

@@ -22,6 +22,8 @@ class ClaudeReply {
     required this.outputTokens,
     required this.webSearches,
     this.stopReason,
+    this.cacheWriteTokens = 0,
+    this.cacheReadTokens = 0,
   });
 
   final String model;
@@ -32,6 +34,10 @@ class ClaudeReply {
   final int outputTokens;
   final int webSearches;
   final String? stopReason;
+
+  /// inputTokens のうちキャッシュ書き込み・読み込みの分（料金の計算用）
+  final int cacheWriteTokens;
+  final int cacheReadTokens;
 }
 
 /// Claude Messages API の最小クライアント
@@ -49,11 +55,18 @@ class ClaudeClient {
     int maxTokens = 1024,
     List<Map<String, dynamic>>? tools,
     Duration timeout = const Duration(seconds: 60),
+    bool cacheSystem = false,
   }) async {
     final body = jsonEncode({
       'model': model,
       'max_tokens': maxTokens,
-      if (system != null) 'system': system,
+      if (system != null)
+        'system': cacheSystem
+            ? [
+                // 固定の指示文をプロンプトキャッシュの対象にする（2回目以降の入力単価が下がる）
+                {'type': 'text', 'text': system, 'cache_control': {'type': 'ephemeral'}},
+              ]
+            : system,
       if (tools != null) 'tools': tools,
       'messages': [
         {'role': 'user', 'content': content},
@@ -162,5 +175,7 @@ ClaudeReply parseReply(String requestedModel, String body) {
     outputTokens: n(usage['output_tokens']),
     webSearches: n(serverTool?['web_search_requests']),
     stopReason: j['stop_reason']?.toString(),
+    cacheWriteTokens: n(usage['cache_creation_input_tokens']),
+    cacheReadTokens: n(usage['cache_read_input_tokens']),
   );
 }

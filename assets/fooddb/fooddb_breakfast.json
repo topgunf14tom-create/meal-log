@@ -1,0 +1,853 @@
+{
+ "version": "1.0",
+ "basis": "ホテルの朝食バイキング想定。日本食品標準成分表（八訂）増補2023年の値に標準的な盛り量を掛けて換算した推定値（estimated=true）。経路D（検索式の手動入力）用。",
+ "updated": "2026-11-10",
+ "items": [
+  {
+   "name": "ご飯",
+   "category": "和食",
+   "serving": "茶碗1杯（150g）",
+   "grams": 150,
+   "kcal": 234.0,
+   "protein": 3.8,
+   "fat": 0.5,
+   "carbs": 55.6,
+   "salt": 0.0,
+   "fiber": 2.2,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 1088,
+     "source_name": "穀類/こめ/［水稲めし］/精白米/うるち米",
+     "grams": 150
+    }
+   ],
+   "note": "",
+   "aliases": [
+    "ごはん",
+    "ライス",
+    "白米"
+   ]
+  },
+  {
+   "name": "味噌汁",
+   "category": "和食",
+   "serving": "1杯",
+   "grams": 45,
+   "kcal": 44.1,
+   "protein": 3.5,
+   "fat": 2.0,
+   "carbs": 3.9,
+   "salt": 1.9,
+   "fiber": 1.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 17045,
+     "source_name": "調味料及び香辛料類/＜調味料類＞/（みそ類）/米みそ/淡色辛みそ",
+     "grams": 15
+    },
+    {
+     "source_id": 4033,
+     "source_name": "豆類/だいず/［豆腐・油揚げ類］/絹ごし豆腐",
+     "grams": 30
+    }
+   ],
+   "note": "豆腐の味噌汁換算",
+   "aliases": [
+    "みそ汁",
+    "みそしる"
+   ]
+  },
+  {
+   "name": "焼き鮭",
+   "category": "和食",
+   "serving": "1切（60g）",
+   "grams": 60,
+   "kcal": 105.0,
+   "protein": 16.9,
+   "fat": 4.6,
+   "carbs": 0.1,
+   "salt": 0.1,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 10127,
+     "source_name": "魚介類/＜魚類＞/（さけ・ます類）/からふとます/焼き",
+     "grams": 60
+    }
+   ],
+   "note": "からふとます焼きの値",
+   "aliases": [
+    "しゃけ",
+    "シャケ",
+    "サーモン焼き"
+   ]
+  },
+  {
+   "name": "さば焼き",
+   "category": "和食",
+   "serving": "1切（50g）",
+   "grams": 50,
+   "kcal": 132.0,
+   "protein": 12.6,
+   "fat": 11.2,
+   "carbs": 0.2,
+   "salt": 0.1,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 10156,
+     "source_name": "魚介類/＜魚類＞/（さば類）/まさば/焼き",
+     "grams": 50
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "卵焼き",
+   "category": "和食",
+   "serving": "2切れ（40g）",
+   "grams": 40,
+   "kcal": 58.4,
+   "protein": 0.0,
+   "fat": 0.0,
+   "carbs": 0.0,
+   "salt": 0.0,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 12018,
+     "source_name": "卵類/鶏卵/たまご焼/厚焼きたまご",
+     "grams": 40
+    }
+   ],
+   "note": "厚焼きたまごの値",
+   "aliases": [
+    "たまごやき",
+    "玉子焼き"
+   ]
+  },
+  {
+   "name": "ゆで卵",
+   "category": "和食",
+   "serving": "1個（50g）",
+   "grams": 50,
+   "kcal": 67.0,
+   "protein": 6.2,
+   "fat": 5.2,
+   "carbs": 0.1,
+   "salt": 0.1,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 12005,
+     "source_name": "卵類/鶏卵/全卵/ゆで",
+     "grams": 50
+    }
+   ],
+   "note": "",
+   "aliases": [
+    "ゆでたまご"
+   ]
+  },
+  {
+   "name": "納豆",
+   "category": "和食",
+   "serving": "1パック（40g）",
+   "grams": 40,
+   "kcal": 73.6,
+   "protein": 6.6,
+   "fat": 4.0,
+   "carbs": 4.8,
+   "salt": 0.0,
+   "fiber": 3.8,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 4046,
+     "source_name": "豆類/だいず/［納豆類］/糸引き納豆",
+     "grams": 40
+    }
+   ],
+   "note": "",
+   "aliases": [
+    "なっとう"
+   ]
+  },
+  {
+   "name": "豆腐（小鉢）",
+   "category": "和食",
+   "serving": "小鉢（50g）",
+   "grams": 50,
+   "kcal": 28.0,
+   "protein": 2.6,
+   "fat": 1.8,
+   "carbs": 1.0,
+   "salt": 0.0,
+   "fiber": 0.5,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 4033,
+     "source_name": "豆類/だいず/［豆腐・油揚げ類］/絹ごし豆腐",
+     "grams": 50
+    }
+   ],
+   "note": "絹ごし豆腐"
+  },
+  {
+   "name": "漬物",
+   "category": "和食",
+   "serving": "小皿（15g）",
+   "grams": 15,
+   "kcal": 6.5,
+   "protein": 0.1,
+   "fat": 0.0,
+   "carbs": 1.6,
+   "salt": 0.5,
+   "fiber": 0.3,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 6138,
+     "source_name": "野菜類/（だいこん類）/漬物/たくあん漬/塩押しだいこん漬",
+     "grams": 15
+    }
+   ],
+   "note": "たくあん換算"
+  },
+  {
+   "name": "梅干し",
+   "category": "和食",
+   "serving": "1個（10g）",
+   "grams": 10,
+   "kcal": 2.9,
+   "protein": 0.1,
+   "fat": 0.1,
+   "carbs": 0.9,
+   "salt": 1.8,
+   "fiber": 0.3,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 7022,
+     "source_name": "果実類/うめ/梅干し/塩漬",
+     "grams": 10
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "焼きのり",
+   "category": "和食",
+   "serving": "1袋（3g）",
+   "grams": 3,
+   "kcal": 8.9,
+   "protein": 1.2,
+   "fat": 0.1,
+   "carbs": 1.3,
+   "salt": 0.0,
+   "fiber": 1.1,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 9004,
+     "source_name": "藻類/あまのり/焼きのり",
+     "grams": 3
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "ひじき煮",
+   "category": "和食",
+   "serving": "小鉢",
+   "grams": 41,
+   "kcal": 15.0,
+   "protein": 0.3,
+   "fat": 1.1,
+   "carbs": 1.9,
+   "salt": 0.0,
+   "fiber": 1.4,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 9051,
+     "source_name": "藻類/ひじき/ほしひじき/ステンレス釜/ゆで",
+     "grams": 30
+    },
+    {
+     "source_id": 6215,
+     "source_name": "野菜類/（にんじん類）/にんじん/根/皮なし/ゆで",
+     "grams": 10
+    },
+    {
+     "source_id": 14002,
+     "source_name": "油脂類/（植物油脂類）/ごま油",
+     "grams": 1
+    }
+   ],
+   "note": "ひじき＋にんじん＋油換算の目安"
+  },
+  {
+   "name": "きんぴらごぼう",
+   "category": "和食",
+   "serving": "小鉢",
+   "grams": 37,
+   "kcal": 33.1,
+   "protein": 0.4,
+   "fat": 2.1,
+   "carbs": 4.3,
+   "salt": 0.0,
+   "fiber": 1.8,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 6085,
+     "source_name": "野菜類/（ごぼう類）/ごぼう/根/ゆで",
+     "grams": 25
+    },
+    {
+     "source_id": 6215,
+     "source_name": "野菜類/（にんじん類）/にんじん/根/皮なし/ゆで",
+     "grams": 10
+    },
+    {
+     "source_id": 14002,
+     "source_name": "油脂類/（植物油脂類）/ごま油",
+     "grams": 2
+    }
+   ],
+   "note": "ごま油換算込みの目安"
+  },
+  {
+   "name": "お粥",
+   "category": "和食",
+   "serving": "1杯（200g）",
+   "grams": 200,
+   "kcal": 130.0,
+   "protein": null,
+   "fat": null,
+   "carbs": null,
+   "salt": null,
+   "fiber": null,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 1091,
+     "source_name": "穀類/こめ/［水稲全かゆ］/半つき米",
+     "grams": 200
+    }
+   ],
+   "note": "成分表の公表はkcalのみ"
+  },
+  {
+   "name": "トースト（バター付き）",
+   "category": "洋食",
+   "serving": "6枚切り1枚＋バター8g",
+   "grams": 68,
+   "kcal": 217.4,
+   "protein": 5.9,
+   "fat": 9.2,
+   "carbs": 30.4,
+   "salt": 0.9,
+   "fiber": 2.8,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 1174,
+     "source_name": "穀類/こむぎ/［パン類］/角形食パン/焼き",
+     "grams": 60
+    },
+    {
+     "source_id": 14017,
+     "source_name": "油脂類/（バター類）/無発酵バター/有塩バター",
+     "grams": 8
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "食パン",
+   "category": "洋食",
+   "serving": "6枚切り1枚（60g）",
+   "grams": 60,
+   "kcal": 148.8,
+   "protein": 5.3,
+   "fat": 2.5,
+   "carbs": 27.8,
+   "salt": 0.7,
+   "fiber": 2.5,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 1026,
+     "source_name": "穀類/こむぎ/［パン類］/角形食パン/食パン",
+     "grams": 60
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "クロワッサン",
+   "category": "洋食",
+   "serving": "1個（45g）",
+   "grams": 45,
+   "kcal": 197.1,
+   "protein": 3.6,
+   "fat": 12.1,
+   "carbs": 19.8,
+   "salt": 0.5,
+   "fiber": 0.8,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 1035,
+     "source_name": "穀類/こむぎ/［パン類］/クロワッサン/リッチタイプ",
+     "grams": 45
+    }
+   ],
+   "note": "リッチタイプの値"
+  },
+  {
+   "name": "ロールパン",
+   "category": "洋食",
+   "serving": "1個（30g）",
+   "grams": 30,
+   "kcal": 92.7,
+   "protein": 3.0,
+   "fat": 2.7,
+   "carbs": 14.6,
+   "salt": 0.4,
+   "fiber": 0.6,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 1034,
+     "source_name": "穀類/こむぎ/［パン類］/ロールパン",
+     "grams": 30
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "スクランブルエッグ",
+   "category": "洋食",
+   "serving": "卵1個分",
+   "grams": 55,
+   "kcal": 115.2,
+   "protein": 6.1,
+   "fat": 10.1,
+   "carbs": 0.2,
+   "salt": 0.2,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 12004,
+     "source_name": "卵類/鶏卵/全卵/生",
+     "grams": 50
+    },
+    {
+     "source_id": 14005,
+     "source_name": "油脂類/（植物油脂類）/大豆油",
+     "grams": 5
+    }
+   ],
+   "note": "卵＋調理油換算",
+   "aliases": [
+    "スクランブル"
+   ]
+  },
+  {
+   "name": "目玉焼き",
+   "category": "洋食",
+   "serving": "1個",
+   "grams": 53,
+   "kcal": 97.5,
+   "protein": 6.1,
+   "fat": 8.1,
+   "carbs": 0.2,
+   "salt": 0.2,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 12004,
+     "source_name": "卵類/鶏卵/全卵/生",
+     "grams": 50
+    },
+    {
+     "source_id": 14005,
+     "source_name": "油脂類/（植物油脂類）/大豆油",
+     "grams": 3
+    }
+   ],
+   "note": "卵＋調理油換算"
+  },
+  {
+   "name": "ベーコン",
+   "category": "洋食",
+   "serving": "2枚（20g）",
+   "grams": 20,
+   "kcal": 48.8,
+   "protein": 3.1,
+   "fat": 3.9,
+   "carbs": 0.6,
+   "salt": 0.5,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 11183,
+     "source_name": "肉類/＜畜肉類＞/ぶた/［ベーコン類］/ばらベーコン/ばらベーコン",
+     "grams": 20
+    }
+   ],
+   "note": "ばらベーコン"
+  },
+  {
+   "name": "ウインナー",
+   "category": "洋食",
+   "serving": "2本（30g）",
+   "grams": 30,
+   "kcal": 95.7,
+   "protein": 3.5,
+   "fat": 9.2,
+   "carbs": 1.0,
+   "salt": 0.6,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 11186,
+     "source_name": "肉類/＜畜肉類＞/ぶた/［ソーセージ類］/ウインナーソーセージ/ウインナーソーセージ",
+     "grams": 30
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "ハム",
+   "category": "洋食",
+   "serving": "1枚（15g）",
+   "grams": 15,
+   "kcal": 31.6,
+   "protein": 2.8,
+   "fat": 2.2,
+   "carbs": 0.3,
+   "salt": 0.3,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 11176,
+     "source_name": "肉類/＜畜肉類＞/ぶた/［ハム類］/ロースハム/ロースハム",
+     "grams": 15
+    }
+   ],
+   "note": "ロースハム"
+  },
+  {
+   "name": "チーズ",
+   "category": "洋食",
+   "serving": "スライス1枚（18g）",
+   "grams": 18,
+   "kcal": 56.3,
+   "protein": 4.1,
+   "fat": 4.7,
+   "carbs": 0.2,
+   "salt": 0.5,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 13040,
+     "source_name": "乳類/＜牛乳及び乳製品＞/（チーズ類）/プロセスチーズ",
+     "grams": 18
+    }
+   ],
+   "note": "プロセスチーズ"
+  },
+  {
+   "name": "ヨーグルト",
+   "category": "洋食",
+   "serving": "1カップ（100g）",
+   "grams": 100,
+   "kcal": 56.0,
+   "protein": 3.6,
+   "fat": 3.0,
+   "carbs": 4.9,
+   "salt": 0.1,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 13025,
+     "source_name": "乳類/＜牛乳及び乳製品＞/（発酵乳・乳酸菌飲料）/ヨーグルト/全脂無糖",
+     "grams": 100
+    }
+   ],
+   "note": "全脂無糖"
+  },
+  {
+   "name": "コーンフレーク（牛乳かけ）",
+   "category": "洋食",
+   "serving": "フレーク30g＋牛乳100ml",
+   "grams": 130,
+   "kcal": 175.0,
+   "protein": 5.6,
+   "fat": 4.3,
+   "carbs": 29.9,
+   "salt": 0.7,
+   "fiber": 0.7,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 1137,
+     "source_name": "穀類/とうもろこし/コーンフレーク",
+     "grams": 30
+    },
+    {
+     "source_id": 13003,
+     "source_name": "乳類/＜牛乳及び乳製品＞/（液状乳類）/普通牛乳",
+     "grams": 100
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "パンケーキ",
+   "category": "洋食",
+   "serving": "1枚（60g）",
+   "grams": 60,
+   "kcal": 151.8,
+   "protein": null,
+   "fat": null,
+   "carbs": null,
+   "salt": null,
+   "fiber": null,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 15083,
+     "source_name": "菓子類/＜ケーキ・ペストリー類＞/ホットケーキ",
+     "grams": 60
+    }
+   ],
+   "note": "成分表の公表はkcalのみ"
+  },
+  {
+   "name": "フライドポテト",
+   "category": "洋食",
+   "serving": "小皿（50g）",
+   "grams": 50,
+   "kcal": 114.5,
+   "protein": 1.4,
+   "fat": 5.3,
+   "carbs": 16.2,
+   "salt": 0.0,
+   "fiber": 1.6,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 2020,
+     "source_name": "いも及びでん粉類/＜いも類＞/じゃがいも/塊茎/皮なし/フライドポテト/（市販冷凍食品を揚げたもの）",
+     "grams": 50
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "サラダ",
+   "category": "サラダ・フルーツ",
+   "serving": "小皿",
+   "grams": 60,
+   "kcal": 8.6,
+   "protein": 0.4,
+   "fat": 0.1,
+   "carbs": 2.1,
+   "salt": 0.0,
+   "fiber": 0.6,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 6312,
+     "source_name": "野菜類/（レタス類）/レタス/土耕栽培/結球葉/生",
+     "grams": 30
+    },
+    {
+     "source_id": 6182,
+     "source_name": "野菜類/（トマト類）/赤色トマト/果実/生",
+     "grams": 20
+    },
+    {
+     "source_id": 6065,
+     "source_name": "野菜類/きゅうり/果実/生",
+     "grams": 10
+    }
+   ],
+   "note": "ドレッシング別"
+  },
+  {
+   "name": "ブロッコリー（温野菜）",
+   "category": "サラダ・フルーツ",
+   "serving": "小皿（40g）",
+   "grams": 40,
+   "kcal": 12.0,
+   "protein": 1.6,
+   "fat": 0.2,
+   "carbs": 2.1,
+   "salt": 0.0,
+   "fiber": 1.7,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 6264,
+     "source_name": "野菜類/ブロッコリー/花序/ゆで",
+     "grams": 40
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "バナナ",
+   "category": "サラダ・フルーツ",
+   "serving": "1本（可食部90g）",
+   "grams": 90,
+   "kcal": 83.7,
+   "protein": 1.0,
+   "fat": 0.2,
+   "carbs": 20.2,
+   "salt": 0.0,
+   "fiber": 1.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 7107,
+     "source_name": "果実類/バナナ/生",
+     "grams": 90
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "みかん",
+   "category": "サラダ・フルーツ",
+   "serving": "1個（可食部75g）",
+   "grams": 75,
+   "kcal": 36.8,
+   "protein": 0.4,
+   "fat": 0.1,
+   "carbs": 8.9,
+   "salt": 0.0,
+   "fiber": 0.5,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 7026,
+     "source_name": "果実類/（かんきつ類）/うんしゅうみかん/じょうのう/早生/生",
+     "grams": 75
+    }
+   ],
+   "note": ""
+  },
+  {
+   "name": "牛乳",
+   "category": "ドリンク",
+   "serving": "1杯（200ml）",
+   "grams": 200,
+   "kcal": 122.0,
+   "protein": 6.6,
+   "fat": 7.6,
+   "carbs": 9.6,
+   "salt": 0.2,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 13003,
+     "source_name": "乳類/＜牛乳及び乳製品＞/（液状乳類）/普通牛乳",
+     "grams": 200
+    }
+   ],
+   "note": "",
+   "aliases": [
+    "ミルク",
+    "ぎゅうにゅう"
+   ]
+  },
+  {
+   "name": "オレンジジュース",
+   "category": "ドリンク",
+   "serving": "1杯（150ml）",
+   "grams": 150,
+   "kcal": 63.0,
+   "protein": 0.8,
+   "fat": 0.1,
+   "carbs": 14.8,
+   "salt": 0.0,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 7031,
+     "source_name": "果実類/（かんきつ類）/うんしゅうみかん/果実飲料/濃縮還元ジュース",
+     "grams": 150
+    }
+   ],
+   "note": "みかん濃縮還元ジュースの値で代用",
+   "aliases": [
+    "OJ",
+    "ジュース"
+   ]
+  },
+  {
+   "name": "コーヒー",
+   "category": "ドリンク",
+   "serving": "1杯（150ml）",
+   "grams": 150,
+   "kcal": 6.0,
+   "protein": 0.3,
+   "fat": 0.0,
+   "carbs": 1.1,
+   "salt": 0.0,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 16045,
+     "source_name": "し好飲料類/＜コーヒー・ココア類＞/コーヒー/浸出液",
+     "grams": 150
+    }
+   ],
+   "note": "ブラック"
+  },
+  {
+   "name": "紅茶",
+   "category": "ドリンク",
+   "serving": "1杯（150ml）",
+   "grams": 150,
+   "kcal": 1.5,
+   "protein": 0.1,
+   "fat": 0.0,
+   "carbs": 0.1,
+   "salt": 0.0,
+   "fiber": 0.0,
+   "estimated": true,
+   "components": [
+    {
+     "source_id": 16044,
+     "source_name": "し好飲料類/＜茶類＞/（発酵茶類）/紅茶/浸出液",
+     "grams": 150
+    }
+   ],
+   "note": "ストレート"
+  }
+ ]
+}

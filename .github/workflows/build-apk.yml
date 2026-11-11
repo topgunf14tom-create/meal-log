@@ -141,6 +141,13 @@ jobs:
           name: meal_log-apk
           path: meal-log.apk
 
+      # デザイン確認用のプレビュー画像（test/preview_test.dart が作る）
+      - uses: actions/upload-artifact@v4
+        with:
+          name: design-preview
+          path: build/preview/
+          if-no-files-found: ignore
+
       # スマホのブラウザから直接ダウンロードできるよう「最新版」リリースを更新
       - name: Publish latest release
         if: github.ref == 'refs/heads/main'

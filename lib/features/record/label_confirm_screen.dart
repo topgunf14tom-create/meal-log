@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_services.dart';
+import '../../core/theme.dart';
 import '../../core/food_db.dart';
 import '../../core/format.dart';
 import '../../core/label_text.dart';
@@ -123,7 +124,7 @@ class _LabelConfirmScreenState extends State<LabelConfirmScreen> {
           if (widget.via != null) Text('読み取り：${widget.via}', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 4),
           Card(
-            color: _consistent ? null : Colors.orange.withAlpha(40),
+            color: _consistent ? null : AppColors.warning.withAlpha(40),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Text(_consistent

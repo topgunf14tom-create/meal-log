@@ -15,6 +15,7 @@ import '../../services/health_service.dart';
 import '../../services/image_service.dart';
 import '../../widgets/activity_card.dart';
 import '../../widgets/macro_widgets.dart';
+import '../../widgets/scale_display.dart';
 import '../record/record_screen.dart';
 import '../result_edit/result_edit_screen.dart';
 import '../../services/home_widget_updater.dart';
@@ -313,11 +314,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                 children: [
-                  _CalorieCard(
-                    total: total,
-                    goal: goal,
-                    burn: (s.settings.addBurnToGoal && burn != null) ? burn : 0,
-                  ),
+                  Builder(builder: (_) {
+                    final add = (s.settings.addBurnToGoal && burn != null) ? burn.roundToDouble() : 0.0;
+                    return ScaleDisplay(
+                      byType: {
+                        for (final t in MealType.values)
+                          t: Pfc.sum(_meals.where((m) => m.type == t).expand((m) => m.items)).kcal,
+                      },
+                      target: goal.targetKcal.toDouble() + add,
+                      baseTarget: goal.targetKcal.toDouble(),
+                      burn: add,
+                    );
+                  }),
                   const SizedBox(height: 12),
                   if (healthOn) ...[
                     ActivityCard(
@@ -332,8 +340,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     _HealthPromptCard(onConnect: _connect, onDismiss: _dismissPrompt),
                     const SizedBox(height: 12),
                   ],
+                  const SizedBox(height: 6),
                   _PfcCard(total: total, goal: goal),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   if (_favorites.isNotEmpty) ...[
                     _FavoritesCard(favorites: _favorites, onTap: _quickLog, onLongPress: _deleteFavorite),
                     const SizedBox(height: 12),
@@ -446,59 +455,6 @@ class _HealthPromptCard extends StatelessWidget {
   }
 }
 
-class _CalorieCard extends StatelessWidget {
-  const _CalorieCard({required this.total, required this.goal, this.burn = 0});
-
-  final Pfc total;
-  final Goal goal;
-
-  /// 目標に上乗せする消費カロリー（ヘルスコネクト）
-  final double burn;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final target = goal.targetKcal + burn.roundToDouble();
-    final remain = target - total.kcal;
-    final ratio = target <= 0 ? 0.0 : (total.kcal / target).clamp(0.0, 1.0).toDouble();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('摂取カロリー', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(kcal0(total.kcal), style: Theme.of(context).textTheme.headlineMedium),
-                Text(' / ${kcal0(target)} kcal'),
-                const Spacer(),
-                Text(
-                  remain >= 0 ? 'あと ${kcal0(remain)} kcal' : '${kcal0(-remain)} kcal オーバー',
-                  style: TextStyle(color: remain >= 0 ? scheme.primary : scheme.error, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            if (burn > 0)
-              Text('目標 ${goal.targetKcal} ＋ 消費 ${kcal0(burn)} kcal', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: ratio,
-                minHeight: 12,
-                color: remain >= 0 ? scheme.primary : scheme.error,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _PfcCard extends StatelessWidget {
   const _PfcCard({required this.total, required this.goal});
 
@@ -510,33 +466,24 @@ class _PfcCard extends StatelessWidget {
     final t = targetGrams(goal);
     final r = total.energyRatio();
     final small = Theme.of(context).textTheme.bodySmall;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Column(
-              children: [
-                PfcPie(p: r.p, f: r.f, c: r.c),
-                const SizedBox(height: 8),
-                Text('P${r.p.round()} F${r.f.round()} C${r.c.round()}', style: small),
-                Text('目標 ${goal.pRatio}/${goal.fRatio}/${goal.cRatio}', style: small),
-              ],
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                children: [
-                  MacroBar(label: 'P たんぱく質', value: total.p, target: t.p, color: MacroColors.protein),
-                  const SizedBox(height: 10),
-                  MacroBar(label: 'F 脂質', value: total.f, target: t.f, color: MacroColors.fat),
-                  const SizedBox(height: 10),
-                  MacroBar(label: 'C 炭水化物', value: total.c, target: t.c, color: MacroColors.carbs),
-                ],
-              ),
-            ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MacroBar(label: 'たんぱく質', value: total.p, target: t.p, color: MacroColors.protein),
+          const SizedBox(height: 12),
+          MacroBar(label: '脂質', value: total.f, target: t.f, color: MacroColors.fat),
+          const SizedBox(height: 12),
+          MacroBar(label: '炭水化物', value: total.c, target: t.c, color: MacroColors.carbs),
+          const SizedBox(height: 8),
+          Text(
+            total.kcal <= 0
+                ? 'エネルギー比の目標 P${goal.pRatio} F${goal.fRatio} C${goal.cRatio}'
+                : 'エネルギー比 P${r.p.round()} F${r.f.round()} C${r.c.round()}（目標 ${goal.pRatio}/${goal.fRatio}/${goal.cRatio}）',
+            style: small,
+          ),
+        ],
       ),
     );
   }
@@ -553,39 +500,63 @@ class _MealSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtotal = Pfc.sum(meals.expand((m) => m.items));
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
-              children: [
-                Text(type.label, style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                Text('${kcal0(subtotal.kcal)} kcal'),
-              ],
+    final theme = Theme.of(context);
+    final small = theme.textTheme.bodySmall?.copyWith(color: AppColors.sub);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.text, width: 1.5))),
+          padding: const EdgeInsets.fromLTRB(2, 10, 2, 4),
+          child: Row(
+            children: [
+              Text(type.label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              Text(
+                meals.isEmpty ? 'まだ' : '${kcal0(subtotal.kcal)} kcal',
+                style: TextStyle(
+                  color: meals.isEmpty ? AppColors.faint : AppColors.text,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final m in meals)
+          InkWell(
+            onTap: () => onTap(m),
+            onLongPress: () => onDelete(m),
+            child: Container(
+              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+              padding: const EdgeInsets.fromLTRB(2, 8, 0, 8),
+              child: Row(
+                children: [
+                  _Thumb(path: m.photoPath),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(m.items.map((i) => i.name).join('、'), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        Builder(builder: (_) {
+                          final p = Pfc.sum(m.items);
+                          return Text('${kcal0(p.kcal)} kcal　P${g1(p.p)} F${g1(p.f)} C${g1(p.c)}', style: small);
+                        }),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '削除',
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: AppColors.faint,
+                    onPressed: () => onDelete(m),
+                  ),
+                ],
+              ),
             ),
           ),
-          if (meals.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Text('記録なし', style: Theme.of(context).textTheme.bodySmall),
-            ),
-          for (final m in meals)
-            ListTile(
-              onTap: () => onTap(m),
-              leading: _Thumb(path: m.photoPath),
-              title: Text(m.items.map((i) => i.name).join('、'), maxLines: 2, overflow: TextOverflow.ellipsis),
-              subtitle: Builder(builder: (_) {
-                final p = Pfc.sum(m.items);
-                return Text('${kcal0(p.kcal)} kcal  P${g1(p.p)} F${g1(p.f)} C${g1(p.c)}');
-              }),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => onDelete(m)),
-            ),
-        ],
-      ),
+        const SizedBox(height: 14),
+      ],
     );
   }
 }

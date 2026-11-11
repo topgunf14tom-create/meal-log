@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 
-/// 実績 g と目標 g の横棒
+/// 実績 g と目標 g：量りの目盛り（目標までを10等分）の上に実績の太線
 class MacroBar extends StatelessWidget {
   const MacroBar({super.key, required this.label, required this.value, required this.target, required this.color});
 
@@ -16,32 +16,60 @@ class MacroBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = target <= 0 ? 0.0 : (value / target).clamp(0.0, 1.0).toDouble();
     final over = target > 0 && value > target * 1.1;
-    final errorColor = Theme.of(context).colorScheme.error;
+    final sub = Theme.of(context).textTheme.bodySmall;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
             const Spacer(),
-            Text('${g1(value)} / ${g1(target)} g', style: TextStyle(color: over ? errorColor : null)),
+            Text(
+              '${g1(value)} / ${g1(target)} g',
+              style: (sub ?? const TextStyle()).copyWith(
+                color: over ? AppColors.over : AppColors.sub,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: ratio,
-            minHeight: 8,
-            color: over ? errorColor : color,
-            backgroundColor: color.withAlpha(50),
-          ),
+        SizedBox(
+          height: 12,
+          width: double.infinity,
+          child: CustomPaint(painter: _RulerPainter(target <= 0 ? 0 : value / target, over ? AppColors.over : color)),
         ),
       ],
     );
   }
+}
+
+class _RulerPainter extends CustomPainter {
+  _RulerPainter(this.ratio, this.color);
+
+  /// 実績 ÷ 目標（1 を超えたら右端で止める）
+  final double ratio;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ink = Paint()
+      ..color = AppColors.text
+      ..strokeWidth = 1;
+    final base = size.height - 0.5;
+    canvas.drawLine(Offset(0, base), Offset(size.width, base), ink);
+    for (var i = 0; i <= 10; i++) {
+      final x = (size.width - 1) * i / 10 + 0.5;
+      final h = i % 5 == 0 ? size.height : size.height * 0.5;
+      canvas.drawLine(Offset(x, base - h), Offset(x, base), ink);
+    }
+    final w = size.width * ratio.clamp(0.0, 1.0);
+    canvas.drawRect(Rect.fromLTWH(0, base - 5, w, 5), Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RulerPainter old) => old.ratio != ratio || old.color != color;
 }
 
 /// PFC エネルギー比率のドーナツグラフ
@@ -116,9 +144,9 @@ class InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: c.withAlpha(30),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: c.withAlpha(120)),
+        color: c.withAlpha(22),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: c.withAlpha(110)),
       ),
       child: Text(text, style: TextStyle(fontSize: 12, color: c)),
     );

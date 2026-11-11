@@ -35,7 +35,7 @@ Claude Code 向けの開発指示書。リポジトリ直下に置き、ここ�
 | カメラ/画像選択 | image_picker |
 | 画像圧縮 | flutter_image_compress |
 | APIキー保存 | flutter_secure_storage |
-| テーマ | ダーク固定（Astryx の Gothic テーマの色・角丸を `lib/core/theme.dart` に移植）。英数字は同梱の Fustat（assets/fonts、OFL）、日本語は端末のフォント |
+| テーマ | 「キッチンスケール」（2026-11-11）：石の灰緑の地 #E6EAE4・墨 #1E2320・液晶 #B7C4A6 の3色が基本、PFCだけ藍・黄土・緑。カードは影なし・罫線で区切る。ホームの残りkcalは液晶表示＋食事区分の帯グラフ（`widgets/scale_display.dart`）、PFCは目盛り付きの物差し。文字は同梱の Zen Kaku Gothic New（assets/fonts、OFL）。色・角丸は `lib/core/theme.dart` |
 | グラフ | CustomPaint（自前描画。外部パッケージ依存を減らすため） |
 | 日付 | 自前の日付ヘルパー（lib/core/dates.dart）＋flutter_localizations（ja） |
 | QR読み取り | mobile_scanner（InBody 用紙の QR） |

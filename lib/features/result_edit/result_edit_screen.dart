@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../app_services.dart';
+import '../../core/theme.dart';
 import '../../core/food_db.dart';
 import '../../core/format.dart';
 import '../../core/links.dart';
@@ -878,7 +879,7 @@ class _PortionCard extends StatelessWidget {
       shape: (row.needsConfirm && !row.confirmed) || p == null
           ? RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: p == null ? scheme.error : Colors.orange, width: 1.2),
+              side: BorderSide(color: p == null ? scheme.error : AppColors.warning, width: 1.2),
             )
           : null,
       child: Padding(
@@ -1026,7 +1027,7 @@ class _PortionCard extends StatelessWidget {
               if (p.food.pfcUnknown)
                 Row(
                   children: [
-                    Icon(Icons.help_outline, size: 16, color: p.pfcFrom == null ? Colors.orange : scheme.primary),
+                    Icon(Icons.help_outline, size: 16, color: p.pfcFrom == null ? AppColors.warning : scheme.primary),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
@@ -1058,7 +1059,7 @@ class _PortionCard extends StatelessWidget {
                   InfoChip(p.food.source.label),
                   if (row.fromPhoto || p.food.estimated) const InfoChip('推定'),
                   if (row.needsConfirm && !row.confirmed) ...[
-                    const InfoChip('要確認', color: Colors.orange),
+                    const InfoChip('要確認', color: AppColors.warning),
                     TextButton(
                       style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
                       onPressed: () {
@@ -1172,7 +1173,7 @@ class _ItemCard extends StatelessWidget {
                     confidenceLabel(b.confidence),
                     color: b.confidence == 'low' ? Theme.of(context).colorScheme.error : null,
                   ),
-                if (b.pfcUnknown) const InfoChip('PFC不明', color: Colors.orange),
+                if (b.pfcUnknown) const InfoChip('PFC不明', color: AppColors.warning),
                 if (b.sourceUrl != null)
                   TextButton.icon(
                     style: TextButton.styleFrom(visualDensity: VisualDensity.compact),

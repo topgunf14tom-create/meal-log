@@ -37,6 +37,14 @@ flutter:
     # 食品DB（JSONを差し替えれば更新できる。docs/spec_redesign.md §4）
     - assets/fooddb/
   fonts:
+    # 日本語・英数字とも Zen Kaku Gothic New（OFL。assets/fonts/ZenKakuGothicNew-OFL.txt）
+    - family: ZenKaku
+      fonts:
+        - asset: assets/fonts/ZenKakuGothicNew-Regular.ttf
+        - asset: assets/fonts/ZenKakuGothicNew-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/ZenKakuGothicNew-Bold.ttf
+          weight: 700
     - family: Fustat
       fonts:
         - asset: assets/fonts/Fustat-Regular.ttf

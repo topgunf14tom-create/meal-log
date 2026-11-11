@@ -11,7 +11,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="今日の残りカロリー"
-        android:textColor="#B3FFFFFF"
+        android:textColor="#FF3E4B39"
         android:textSize="12sp" />
 
     <TextView
@@ -19,7 +19,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="−"
-        android:textColor="#FFFFFFFF"
+        android:textColor="#FF1F2B1C"
         android:textSize="26sp"
         android:textStyle="bold" />
 
@@ -37,13 +37,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:textColor="#E6FFFFFF"
+        android:textColor="#FF1F2B1C"
         android:textSize="12sp" />
 
     <TextView
         android:id="@+id/widget_extra"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#B3FFFFFF"
+        android:textColor="#FF3E4B39"
         android:textSize="11sp" />
 </LinearLayout>

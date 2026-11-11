@@ -25,7 +25,7 @@ class MealLogApp extends StatelessWidget {
       title: '食事記録',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.light,
       locale: const Locale('ja'),
       supportedLocales: const [Locale('ja'), Locale('en')],
       localizationsDelegates: const [

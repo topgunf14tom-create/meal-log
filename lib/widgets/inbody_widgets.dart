@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme.dart';
+
 import '../core/inbody.dart';
 
 /// 標準範囲の判定ラベルと色
@@ -7,11 +9,11 @@ import '../core/inbody.dart';
   final scheme = Theme.of(context).colorScheme;
   switch (level) {
     case -1:
-      return (label: '低い', color: const Color(0xFF8AA1D8));
+      return (label: '低い', color: AppColors.info);
     case 1:
-      return (label: '高い', color: const Color(0xFFE0A49C));
+      return (label: '高い', color: AppColors.error);
     case 0:
-      return (label: '標準', color: const Color(0xFFB3C79A));
+      return (label: '標準', color: AppColors.success);
     default:
       return (label: '', color: scheme.onSurfaceVariant);
   }

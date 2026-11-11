@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_services.dart';
+import '../../core/theme.dart';
 import '../../core/food_db.dart';
 import '../../core/format.dart';
 import '../../core/portion.dart';
@@ -117,7 +118,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     final scheme = Theme.of(context).colorScheme;
     final (text, color) = switch (fit) {
       BudgetFit.ok => ('残り内', scheme.primary),
-      BudgetFit.fatOver => ('脂質超', Colors.orange),
+      BudgetFit.fatOver => ('脂質超', AppColors.warning),
       BudgetFit.kcalOver => ('kcal超', scheme.error),
     };
     return Container(

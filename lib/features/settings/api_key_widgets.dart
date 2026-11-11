@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app_services.dart';
+import '../../core/theme.dart';
 import '../../core/links.dart';
 import '../../services/claude_client.dart';
 
@@ -166,7 +167,7 @@ class _ApiKeyFormState extends State<ApiKeyForm> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(_ok ? Icons.check_circle : Icons.error, color: _ok ? Colors.green : scheme.error),
+              Icon(_ok ? Icons.check_circle : Icons.error, color: _ok ? AppColors.success : scheme.error),
               const SizedBox(width: 8),
               Expanded(child: Text(_message!)),
             ],

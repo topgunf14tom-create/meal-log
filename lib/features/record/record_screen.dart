@@ -11,6 +11,7 @@ import '../../core/label_text.dart';
 import '../../core/meal_type.dart';
 import '../../core/photo_match.dart';
 import '../../core/portion.dart';
+import '../../core/theme.dart';
 import '../../data/entities.dart';
 import '../../services/image_service.dart';
 import '../../services/nutrition_service.dart';
@@ -485,13 +486,15 @@ class _RecordScreenState extends State<RecordScreen> {
     if (saved == true && mounted) Navigator.of(context).pop(true);
   }
 
-  Widget _action(IconData icon, String title, String subtitle, VoidCallback onTap) => Card(
+  /// 入力方法の行（カードにせず罫線で区切る）
+  Widget _action(IconData icon, String title, String subtitle, VoidCallback onTap) => DecoratedBox(
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Icon(icon, size: 32),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_right),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          leading: Icon(icon, size: 26, color: AppColors.text),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(subtitle, style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.faint),
           onTap: _busy ? null : onTap,
         ),
       );

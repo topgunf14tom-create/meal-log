@@ -118,7 +118,7 @@ jobs:
         if: github.ref != 'refs/heads/main'
         run: |
           ls -la build/preview || true
-          for f in build/preview/*.png; do [ -f "$f" ] && echo "PREVIEW:$(basename "$f"):$(base64 -w 0 "$f")"; done; true
+          for f in build/preview/*.png; do n=$(basename "$f"); base64 -w 3000 "$f" | sed "s|^|PV:$n:|"; done || true
 
       # 依存ライブラリのダウンロードが一時的に失敗する（504 など）ことがあるので最大5回試す
       - name: Build APK

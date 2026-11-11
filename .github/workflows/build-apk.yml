@@ -148,6 +148,11 @@ jobs:
           path: build/preview/
           if-no-files-found: ignore
 
+      - name: Print previews
+        if: github.ref != 'refs/heads/main'
+        run: |
+          for f in build/preview/*.png; do [ -f "$f" ] && echo "PREVIEW:$(basename "$f"):$(base64 -w 0 "$f")"; done; true
+
       # スマホのブラウザから直接ダウンロードできるよう「最新版」リリースを更新
       - name: Publish latest release
         if: github.ref == 'refs/heads/main'

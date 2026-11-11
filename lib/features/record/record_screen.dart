@@ -140,8 +140,59 @@ class _RecordScreenState extends State<RecordScreen> {
   }
 
   /// 写真判定（経路C）：真上＋斜めの2枚 → Haiku 1コール → 食品DBで照合 → 量はクラスで確認
+  /// 撮影の前に「いつも」の候補を出す（当たればタップだけで記録、APIなし）。記録したら true
+  Future<bool> _suggestBeforePhoto() async {
+    if (s.settings.raw('photo_suggest') == 'false') return false;
+    final since = ymd(addDays(widget.date, -30));
+    final repeated = await s.db.repeatedMeals(_type, since: since);
+    final favs = (await s.db.favorites()).where((f) => f.mealType == null || f.mealType == _type.name).take(5).toList();
+    final cands = <({String label, List<MealItem> items, String sub})>[
+      for (final f in favs) (label: f.name, items: f.items, sub: 'いつもの'),
+      for (final r in repeated)
+        if (!favs.any((f) => f.items.map((i) => i.name).join('、') == r.label))
+          (label: r.label, items: r.items, sub: '最近30日で${r.count}回'),
+    ];
+    if (cands.isEmpty || !mounted) return false;
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text('この${_type.label}ですか？（タップで記録・APIなし）', style: Theme.of(c).textTheme.titleSmall),
+            ),
+            for (var i = 0; i < cands.length; i++)
+              ListTile(
+                leading: const Icon(Icons.bolt),
+                title: Text(cands[i].label, maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${cands[i].sub}・${cands[i].items.fold<double>(0, (a, x) => a + x.kcal).round()} kcal'),
+                onTap: () => Navigator.pop(c, i),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: FilledButton.icon(
+                onPressed: () => Navigator.pop(c, -1),
+                icon: const Icon(Icons.photo_camera),
+                label: const Text('違う・撮影する'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return true; // 閉じた＝やめる
+    if (picked < 0 || !mounted) return false;
+    await _openEditor(items: cands[picked].items, model: 'manual', note: '候補から記録（API未使用）');
+    return true;
+  }
+
   Future<void> _photo() async {
-    if (!await _ensureKey()) return;
+    if (await _suggestBeforePhoto()) return;
+    if (!mounted || !await _ensureKey()) return;
     if (!mounted || !await _photoGuide()) return;
     final top = await _pickPhoto();
     if (top == null || !mounted) return;

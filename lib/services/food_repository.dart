@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../core/food_db.dart';
+import '../core/portion.dart';
+import '../core/search_text.dart';
 import '../data/app_db.dart';
 import '../data/entities.dart';
 
@@ -40,8 +42,30 @@ class FoodRepository {
       food.usage[ref] = v.count;
       if (v.lastClass != null) lastClass[ref] = v.lastClass!;
     });
+    food.learnedDish.addAll(await _db.dishAliases());
+    _bias.addAll(await _db.classBiases());
+    _bias.forEach((ref, v) => food.classBias[ref] = v.bias);
     _food = food;
     return food;
+  }
+
+  final Map<String, ({double bias, int n})> _bias = {};
+
+  /// 写真の料理名と、自分が選んだ食品の対応を覚える（次回から完全一致で照合）
+  Future<void> learnDish(String judgedName, String ref) async {
+    final key = searchKey(judgedName);
+    if (key.isEmpty || ref.startsWith('label:')) return;
+    await _db.saveDishAlias(key, ref);
+    (await ready).learnedDish[key] = ref;
+  }
+
+  /// 量のクセ：AIの判定 [modelClass] を自分が [chosenClass] にした（直さなかったときも記録して平均を戻す）
+  Future<void> learnClass(String ref, int modelClass, int chosenClass) async {
+    final cur = _bias[ref];
+    final next = updateClassBias(cur?.bias, cur?.n ?? 0, chosenClass - modelClass);
+    _bias[ref] = next;
+    await _db.saveClassBias(ref, next.bias, next.n);
+    (await ready).classBias[ref] = next.bias;
   }
 
   /// 個人DBの1件を検索用のレコードにする

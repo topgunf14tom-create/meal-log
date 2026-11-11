@@ -143,6 +143,12 @@ class FoodDb {
   /// 利用回数（food_usage）。候補の並びに使う
   final Map<String, int> usage = {};
 
+  /// 写真の料理名（正規化）→ 自分が選んだ食品（選び直した対応を覚える）
+  final Map<String, String> learnedDish = {};
+
+  /// 食品ごとの量のクセ（AI判定との差の平均）
+  final Map<String, double> classBias = {};
+
   List<FoodRecord> get all => List.unmodifiable(_all);
   int get length => _all.length;
 

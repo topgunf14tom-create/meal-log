@@ -37,6 +37,15 @@ class _RecordPrefsSectionState extends State<RecordPrefsSection> {
               },
             ),
           ),
+          SwitchListTile(
+            title: const Text('撮影の前に「いつも」の候補を出す'),
+            subtitle: Text('当たればタップだけで記録（APIを使わない）', style: small),
+            value: s.settings.raw('photo_suggest') != 'false',
+            onChanged: (v) async {
+              await s.settings.set('photo_suggest', v ? 'true' : 'false');
+              if (mounted) setState(() {});
+            },
+          ),
           ListTile(
             title: const Text('写真の撮影ガイドをまた表示する'),
             subtitle: Text('100円玉・真上＋斜め45°の説明', style: small),

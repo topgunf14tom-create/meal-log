@@ -186,6 +186,22 @@ void main() {
     });
   });
 
+  group('量のクセ', () {
+    test('いつも1段多めに直すと、次回の初期値が1段上がる', () {
+      var b = (bias: 0.0, n: 0);
+      expect(applyClassBias(1, null), 1);
+      b = updateClassBias(null, 0, 1);
+      expect(b.bias, 1.0);
+      expect(applyClassBias(1, b.bias), 2);
+      // 直さなかった回が続けば元に戻る
+      for (var i = 0; i < 3; i++) {
+        b = updateClassBias(b.bias, b.n, 0);
+      }
+      expect(applyClassBias(1, b.bias), 1);
+      expect(applyClassBias(3, 2.0), 3); // 大盛より上にはしない
+    });
+  });
+
   group('その他', () {
     test('dHash とハミング距離', () {
       final g = [for (var i = 0; i < 72; i++) (i * 37) % 256];

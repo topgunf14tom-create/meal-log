@@ -26,6 +26,8 @@ class AppDb {
     'user_foods',
     'food_usage',
     'favorites',
+    'dish_aliases',
+    'class_bias',
   ];
 
   /// 個人DB（自分で登録した食品・ラベル読み取り・JAN）
@@ -65,6 +67,19 @@ class AppDb {
       hash TEXT NOT NULL,
       items_json TEXT NOT NULL,
       created_at TEXT NOT NULL)''';
+
+  /// 写真の料理名 → 自分が選び直した食品
+  static const _v6Tables = [
+    '''CREATE TABLE dish_aliases(
+      judged_key TEXT PRIMARY KEY,
+      food_ref TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      updated_at TEXT NOT NULL)''',
+    '''CREATE TABLE class_bias(
+      food_ref TEXT PRIMARY KEY,
+      bias REAL NOT NULL,
+      n INTEGER NOT NULL)''',
+  ];
 
   static const _v5Tables = [
     _userFoodsTable,
@@ -183,13 +198,14 @@ class AppDb {
     _stravaTable,
     'CREATE INDEX idx_strava_start ON strava_activities(start_ms)',
     ..._v5Tables,
+    ..._v6Tables,
   ];
 
   Future<void> open() async {
     final dir = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dir, 'meal_log.db'),
-      version: 5,
+      version: 6,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         for (final sql in _schema) {
@@ -217,6 +233,11 @@ class AppDb {
           await db.execute('ALTER TABLE meal_items ADD COLUMN detail TEXT');
           await db.execute('ALTER TABLE meal_items ADD COLUMN pfc_unknown INTEGER NOT NULL DEFAULT 0');
           for (final sql in _v5Tables) {
+            await db.execute(sql);
+          }
+        }
+        if (oldVersion < 6) {
+          for (final sql in _v6Tables) {
             await db.execute(sql);
           }
         }
@@ -601,6 +622,57 @@ class AppDb {
       } catch (_) {}
     }
     return out;
+  }
+
+  // ---------- 学習（選び直した料理名・量のクセ） ----------
+
+  Future<Map<String, String>> dishAliases() async {
+    final rows = await _db.query('dish_aliases');
+    return {for (final r in rows) r['judged_key'] as String: r['food_ref'] as String};
+  }
+
+  Future<void> saveDishAlias(String judgedKey, String ref) async {
+    final now = DateTime.now().toIso8601String();
+    final n = await _db.rawUpdate(
+        'UPDATE dish_aliases SET food_ref = ?, count = count + 1, updated_at = ? WHERE judged_key = ?',
+        [ref, now, judgedKey]);
+    if (n == 0) {
+      await _db.insert('dish_aliases', {'judged_key': judgedKey, 'food_ref': ref, 'count': 1, 'updated_at': now});
+    }
+  }
+
+  Future<Map<String, ({double bias, int n})>> classBiases() async {
+    final rows = await _db.query('class_bias');
+    return {
+      for (final r in rows)
+        r['food_ref'] as String: (bias: (r['bias'] as num).toDouble(), n: (r['n'] as num).toInt()),
+    };
+  }
+
+  Future<void> saveClassBias(String ref, double bias, int n) async {
+    await _db.insert('class_bias', {'food_ref': ref, 'bias': bias, 'n': n},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// その食事区分で直近 [days] 日に2回以上記録した組み合わせ（回数の多い順、値は最新の記録）
+  Future<List<({String label, List<MealItem> items, int count})>> repeatedMeals(MealType type,
+      {required String since, int limit = 5}) async {
+    final rows = await _db.query('meals',
+        where: 'meal_type = ? AND date >= ?', whereArgs: [type.name, since], orderBy: 'date DESC, created_at DESC');
+    final groups = <String, ({String label, List<MealItem> items, int count})>{};
+    for (final r in rows) {
+      final items = (await _db.query('meal_items', where: 'meal_id = ?', whereArgs: [r['id']], orderBy: 'id'))
+          .map(MealItem.fromDbMap)
+          .toList();
+      if (items.isEmpty) continue;
+      final key = (items.map((i) => i.name).toList()..sort()).join('|');
+      final g = groups[key];
+      groups[key] = g == null
+          ? (label: items.map((i) => i.name).join('、'), items: items, count: 1)
+          : (label: g.label, items: g.items, count: g.count + 1);
+    }
+    final list = groups.values.where((g) => g.count >= 2).toList()..sort((a, b) => b.count.compareTo(a.count));
+    return list.take(limit).toList();
   }
 
   // ---------- Strava ----------

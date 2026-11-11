@@ -101,5 +101,21 @@ void main() {
       expect(drafts[2].portion, isNull);
       expect(drafts[2].needsConfirm, isTrue);
     });
+
+    test('選び直した料理名を覚えて、次回は完全一致で照合・量のクセを反映', () {
+      db.learnedDish[searchKey('謎の料理ふがほげ')] = 's:18036';
+      db.classBias['s:18036'] = 1.0;
+      final d = matchJudgement(
+        db,
+        const PhotoJudgement([JudgedDish(name: '謎の料理ふがほげ', category: DishCategory.main, confidence: 0.9)]),
+      ).single;
+      expect(d.portion!.food.ref, 's:18036');
+      expect(d.learned, isTrue);
+      expect(d.needsConfirm, isFalse);
+      expect(d.modelSizeClass, 1);
+      expect(d.portion!.sizeClass, 2);
+      db.learnedDish.clear();
+      db.classBias.clear();
+    });
   });
 }

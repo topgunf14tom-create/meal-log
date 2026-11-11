@@ -306,13 +306,31 @@ class _ResultEditScreenState extends State<ResultEditScreen> {
         note: _note,
         items: items,
       ));
-      if (widget.mealId == null) await s.foods.recordUsage(items);
+      if (widget.mealId == null) {
+        await s.foods.recordUsage(items);
+        await _learn();
+      }
       if (widget.photoHash != null) await s.db.savePhotoHash(widget.photoHash!, items);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         setState(() => _busy = false);
         _snack('保存できませんでした: $e');
+      }
+    }
+  }
+
+  /// 写真の行から学ぶ：選び直した・確認した料理名の対応と、量のクセ
+  Future<void> _learn() async {
+    for (final r in _rows.whereType<_PortionRow>()) {
+      final p = r.portion;
+      if (!r.fromPhoto || p == null) continue;
+      if (r.picked || (r.initiallyUnsure && r.confirmed)) {
+        await s.foods.learnDish(r.judgedName, p.food.ref);
+      }
+      final m = r.modelClass;
+      if (m != null && p.usesSizeClass && !(p.usesManualGrams && p.manualGrams != null)) {
+        await s.foods.learnClass(p.food.ref, m, p.sizeClass);
       }
     }
   }
@@ -334,6 +352,7 @@ class _ResultEditScreenState extends State<ResultEditScreen> {
           ? Portion(food: picked, sizeClass: s.foods.lastClass[picked.ref] ?? sizeNormal)
           : old.copyWith(food: picked, clearManualGrams: true, clearPfcFrom: true);
       row.needsConfirm = false;
+      row.picked = true;
       row.syncGrams();
     });
   }
@@ -352,6 +371,7 @@ class _ResultEditScreenState extends State<ResultEditScreen> {
       final old = row.portion;
       row.portion = old == null ? Portion(food: hit.food) : old.copyWith(food: hit.food, clearPfcFrom: true);
       row.needsConfirm = hit.tier >= 2;
+      row.picked = true;
       row.syncGrams();
     });
   }
@@ -611,7 +631,10 @@ class _PortionRow extends _Row {
     this.candidates = const [],
     this.needsConfirm = false,
     this.fromPhoto = false,
-  }) {
+    this.modelClass,
+    this.learned = false,
+  })  : judgedName = label,
+        initiallyUnsure = needsConfirm {
     syncGrams();
   }
 
@@ -621,7 +644,22 @@ class _PortionRow extends _Row {
         candidates: d.candidates,
         needsConfirm: d.needsConfirm,
         fromPhoto: d.fromPhoto,
+        modelClass: d.modelSizeClass,
+        learned: d.learned,
       );
+
+  /// 写真判定の料理名（学習のキー）
+  final String judgedName;
+
+  /// AIが判定した量感クラス
+  final int? modelClass;
+
+  /// 以前に選び直した対応で照合した
+  final bool learned;
+  final bool initiallyUnsure;
+
+  /// 自分で食品を選び直した
+  bool picked = false;
 
   Portion? portion;
   String label;
@@ -1008,6 +1046,9 @@ class _PortionCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               if (r.notes.isNotEmpty) Text(r.notes.join('、'), style: small),
+              if (row.fromPhoto && row.modelClass != null && row.modelClass != p.sizeClass && p.usesSizeClass)
+                Text('AIの判定は「${sizeClassLabels[clampClass(row.modelClass)]}」', style: small),
+              if (row.learned) Text('前に選んだ食品で照合しました', style: small),
               const SizedBox(height: 4),
               Wrap(
                 spacing: 6,

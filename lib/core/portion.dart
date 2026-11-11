@@ -20,6 +20,18 @@ int clampClass(int? c) {
 
 double sizeFactor(int? c) => sizeClassFactors[clampClass(c)];
 
+/// 量のクセ（AIの判定 → 自分が直したクラスの差の平均）を写真判定の初期値に反映する。
+/// 差の平均が ±0.5 以上のときだけ1段ずらす
+int applyClassBias(int modelClass, double? bias) =>
+    bias == null ? clampClass(modelClass) : clampClass((modelClass + bias).round());
+
+/// 量のクセを更新する（直近の数回を重く見る移動平均。n は最大4回分で頭打ち）
+({double bias, int n}) updateClassBias(double? bias, int n, int diff) {
+  final k = n > 4 ? 4 : n;
+  final b = bias ?? 0;
+  return (bias: (b * k + diff) / (k + 1), n: k + 1);
+}
+
 /// 料理のカテゴリ（基準量を決める。モデル出力では数値コード）
 enum DishCategory { rice, noodle, bread, soup, main, side, fruit, drink, sweets, other }
 

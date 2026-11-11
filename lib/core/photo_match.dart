@@ -15,6 +15,8 @@ class PortionDraft {
     this.needsConfirm = false,
     this.fromPhoto = false,
     this.modelGrams,
+    this.modelSizeClass,
+    this.learned = false,
   });
 
   /// 照合できた食品と量（DBに無ければ null。利用者が検索して選ぶ）
@@ -30,6 +32,12 @@ class PortionDraft {
 
   /// モデルのグラム推定（補助情報。計算には使わない）
   final double? modelGrams;
+
+  /// AIが判定した量感クラス（量のクセで初期値をずらす前）
+  final int? modelSizeClass;
+
+  /// 以前に自分が選び直した対応で照合した
+  final bool learned;
 }
 
 /// 照合の順：完全一致 → 同義語 → 部分一致（候補提示）。量感クラスはモデルの判定を初期値にする
@@ -126,8 +134,17 @@ FoodHit? _canon(FoodDb db, JudgedDish d) {
   return null;
 }
 
+FoodHit? _learnedHit(FoodDb db, JudgedDish d) {
+  for (final n in d.lookupNames) {
+    final f = db.byRef(db.learnedDish[searchKey(n)]);
+    if (f != null) return FoodHit(f, 0);
+  }
+  return null;
+}
+
 PortionDraft _matchOne(FoodDb db, JudgedDish d) {
-  final hit = _staple(db, d) ?? _canon(db, d) ?? db.bestMatch(d.lookupNames);
+  final learned = _learnedHit(db, d);
+  final hit = learned ?? _staple(db, d) ?? _canon(db, d) ?? db.bestMatch(d.lookupNames);
   if (hit == null) {
     return PortionDraft(
       label: d.name,
@@ -135,13 +152,14 @@ PortionDraft _matchOne(FoodDb db, JudgedDish d) {
       needsConfirm: true,
       fromPhoto: true,
       modelGrams: d.grams,
+      modelSizeClass: d.sizeClass,
     );
   }
   return PortionDraft(
     portion: Portion(
       food: hit.food,
       category: d.category,
-      sizeClass: d.sizeClass,
+      sizeClass: applyClassBias(d.sizeClass, db.classBias[hit.food.ref]),
       cook: d.cook,
     ),
     label: d.name,
@@ -149,5 +167,7 @@ PortionDraft _matchOne(FoodDb db, JudgedDish d) {
     needsConfirm: d.needsConfirm || hit.tier >= 2,
     fromPhoto: true,
     modelGrams: d.grams,
+    modelSizeClass: d.sizeClass,
+    learned: learned != null,
   );
 }

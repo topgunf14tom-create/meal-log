@@ -97,15 +97,15 @@ jobs:
               # ミラーは公式の SHA-256 で検証できるときだけ使う
               case "$u" in *tencent*) [ -n "$SHA" ] || continue;; esac
               echo "取得: $u"
-              if curl -fL --retry 4 --retry-all-errors --retry-delay 15 --connect-timeout 30 -o "$RUNNER_TEMP/gradle.zip" "$u"; then
-                if [ -z "$SHA" ] || echo "$SHA  $RUNNER_TEMP/gradle.zip" | sha256sum -c -; then ok=1; break; fi
+              if curl -fL --retry 4 --retry-all-errors --retry-delay 15 --connect-timeout 30 -o "$RUNNER_TEMP/$NAME.zip" "$u"; then
+                if [ -z "$SHA" ] || echo "$SHA  $RUNNER_TEMP/$NAME.zip" | sha256sum -c -; then ok=1; break; fi
               fi
             done
             [ -n "$ok" ] || { echo "::error::Gradle 本体を取得できませんでした"; exit 1; }
             if [ -z "$SHA" ]; then echo "::warning::SHA-256 を取得できず、公式の配布元から取得したものを検証なしで使いました"; fi
           fi
-          # キャッシュと同じ置き場所になるよう、常にローカルファイルの URL にそろえる
-          sed -i "s#^distributionUrl=.*#distributionUrl=file\\:$RUNNER_TEMP/gradle.zip#" "$PROPS"
+          # 版ごとのファイル名にする（gradle.zip 固定だと前の版の展開済みキャッシュが使われ続ける）
+          sed -i "s#^distributionUrl=.*#distributionUrl=file\\:$RUNNER_TEMP/$NAME.zip#" "$PROPS"
           grep distributionUrl "$PROPS"
 
       - name: Analyze

@@ -118,12 +118,13 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
       if (_reflectWeight) {
         await s.db.saveWeight(WeightEntry(date: day, kg: r.weight.value));
       }
-      if (_setGoal) {
+      final kcal = r.recommendedKcal;
+      if (_setGoal && kcal != null) {
         final today = ymd(DateTime.now());
         final g = await s.db.goalOn(today);
         await s.db.saveGoal(Goal(
           startDate: today,
-          targetKcal: r.recommendedKcal,
+          targetKcal: kcal,
           pRatio: g.pRatio,
           fRatio: g.fRatio,
           cRatio: g.cRatio,
@@ -401,8 +402,9 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
                   ),
                   const SizedBox(height: 4),
                 ],
-                InBodyValueRow(label: '基礎代謝量', value: '${r.bmr}', unit: 'kcal'),
-                InBodyValueRow(label: '推奨エネルギー摂取量', value: '${r.recommendedKcal}', unit: 'kcal'),
+                if (r.bmr != null) InBodyValueRow(label: '基礎代謝量', value: '${r.bmr}', unit: 'kcal'),
+                if (r.recommendedKcal != null)
+                  InBodyValueRow(label: '推奨エネルギー摂取量', value: '${r.recommendedKcal}', unit: 'kcal'),
                 InBodyValueRow(
                     label: 'ウエストヒップ比', value: r.whr.value.toStringAsFixed(2),
                     range: _range(r.whr, 2), level: r.whr.level),
@@ -441,8 +443,7 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
       columnWidths: const {0: FlexColumnWidth(1.3)},
       children: [
         row('Z(Ω)', ['右腕', '左腕', '体幹', '右脚', '左脚'], bold: true),
-        row('20kHz', r.impedance20k.values.map(f).toList()),
-        row('100kHz', r.impedance100k.values.map(f).toList()),
+        for (final z in r.impedances) row(z.label, z.values.values.map(f).toList()),
       ],
     );
   }
@@ -483,7 +484,7 @@ class _InBodyResultScreenState extends State<InBodyResultScreen> {
                 onChanged: (v) => setState(() => _reflectWeight = v ?? true),
                 title: Text('体重記録にも反映（${r.weight.value.toStringAsFixed(1)} kg）'),
               ),
-              CheckboxListTile(
+              if (r.recommendedKcal != null) CheckboxListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,

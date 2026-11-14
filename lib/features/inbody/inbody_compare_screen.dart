@@ -56,11 +56,11 @@ final _sections = <(String, List<_Row>)>[
   (
     '研究項目',
     [
-      _Row('基礎代謝量', 'kcal', (r) => r.bmr.toDouble(), digits: 0, better: 1),
+      _Row('基礎代謝量', 'kcal', (r) => r.bmr?.toDouble(), digits: 0, better: 1),
       _Row('内臓脂肪レベル', '', (r) => r.visceralLevel?.toDouble(), digits: 0, better: -1),
       _Row('ウエストヒップ比', '', (r) => r.whr.value, digits: 2, better: -1),
       _Row('腹囲', 'cm', (r) => r.waistCm, better: -1),
-      _Row('推奨摂取量', 'kcal', (r) => r.recommendedKcal.toDouble(), digits: 0),
+      _Row('推奨摂取量', 'kcal', (r) => r.recommendedKcal?.toDouble(), digits: 0),
     ],
   ),
 ];

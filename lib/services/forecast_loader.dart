@@ -22,7 +22,9 @@ Future<WeightForecast?> loadForecast(DateTime from, DateTime to) async {
   final records = await s.db.inbodyResults();
   for (final r in records) {
     try {
-      bmr = parseInBodyQr(r.raw).bmr.toDouble();
+      final v = parseInBodyQr(r.raw).bmr;
+      if (v == null) continue;
+      bmr = v.toDouble();
       break;
     } on InBodyFormatException {
       continue;

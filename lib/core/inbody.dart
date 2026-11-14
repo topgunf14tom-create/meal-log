@@ -5,6 +5,9 @@
 /// - 照合済み：研究項目・インピーダンス・体成分（体水分量＋タンパク質＋ミネラル＝除脂肪量、
 ///   除脂肪量＋体脂肪量＝体重、BMI＝体重÷身長²が成り立つことを確認）
 /// - 推定：年齢・内臓脂肪レベル（1サンプルのみで確認）
+/// InBody470（2026-11-14、本体画面の QR 1件）は並びが違う。体成分・部位別・点数・調整・
+/// インピーダンス（5/50/500kHz）は 270 と同じ形の値が並ぶ位置で確認し、上の整合性も成り立つ。
+/// 基礎代謝量・推奨摂取量・内臓脂肪レベルは位置が確定できないため読まない（null）。
 /// 位置がずれた場合に誤った値を保存しないよう、[parseInBodyQr] は上記の整合性を検査する。
 library;
 
@@ -70,8 +73,7 @@ class InBodyResult {
     required this.waistCm,
     required this.segmentLean,
     required this.segmentFat,
-    required this.impedance20k,
-    required this.impedance100k,
+    required this.impedances,
   });
 
   /// QR の文字列全体
@@ -122,15 +124,15 @@ class InBodyResult {
   final double fatControl;
   final double muscleControl;
 
-  /// 基礎代謝量（kcal）
-  final int bmr;
+  /// 基礎代謝量（kcal）。読めない機種は null
+  final int? bmr;
 
   /// ウエストヒップ比
   final InBodyValue whr;
   final int? visceralLevel;
 
-  /// 推奨エネルギー摂取量（kcal）
-  final int recommendedKcal;
+  /// 推奨エネルギー摂取量（kcal）。読めない機種は null
+  final int? recommendedKcal;
 
   /// 腹囲（cm）
   final double waistCm;
@@ -141,9 +143,8 @@ class InBodyResult {
   /// 部位別体脂肪量（kg）
   final InBodySegments segmentFat;
 
-  /// インピーダンス（Ω）
-  final InBodySegments impedance20k;
-  final InBodySegments impedance100k;
+  /// インピーダンス（Ω）。周波数の表示名と部位別の値（270 は 20/100kHz、470 は 5/50/500kHz）
+  final List<({String label, InBodySegments values})> impedances;
 
   String get sexLabel => sex == 'F' ? '女性' : '男性';
 }
@@ -225,7 +226,7 @@ DateTime? _parseDateTime(String s) {
 
 bool _near(double a, double b, [double tol = 0.35]) => (a - b).abs() <= tol;
 
-/// InBody の QR を解析する。対応機種は InBody270。
+/// InBody の QR を解析する。対応機種は InBody270・InBody470。
 /// 解析できない・数値の整合性が取れないときは [InBodyFormatException]。
 InBodyResult parseInBodyQr(String text) {
   final d = extractIbData(text);
@@ -233,9 +234,70 @@ InBodyResult parseInBodyQr(String text) {
     throw const InBodyFormatException('InBody の結果用紙の QR コードではないようです');
   }
   final model = d.split('-').first;
-  if (model != '270') {
-    throw InBodyFormatException('InBody$model の用紙にはまだ対応していません（対応：InBody270）');
+  final InBodyResult result;
+  switch (model) {
+    case '270':
+      result = _parse270(text, d);
+    case '470':
+      result = _parse470(text, d);
+    default:
+      throw InBodyFormatException('InBody$model の用紙にはまだ対応していません（対応：InBody270・470）');
   }
+  _validate(result);
+  return result;
+}
+
+InBodyResult _parse470(String text, String d) {
+  final r = _Reader(d);
+  final age = r.integer(47, 3);
+  // 後半は "PASS" と "!!!!" の後ろからの位置で読む
+  final pass = d.indexOf('PASS');
+  final tail = d.indexOf('!!!!', pass < 0 ? 0 : pass);
+  if (pass < 0 || tail < 0) throw const InBodyFormatException('InBody470 の QR の形式が想定と違います');
+  final b = tail + 4;
+  final imp = pass - 60;
+  return InBodyResult(
+    raw: text.trim(),
+    model: '470',
+    heightCm: r.dec(43, 4, 10),
+    age: (age >= 3 && age <= 120) ? age : null,
+    sex: r.str(51, 1) == 'F' ? 'F' : 'M',
+    measuredAt: _parseDateTime(r.str(52, 14)),
+    protein: r.ranged(66, 10),
+    mineral: r.ranged(78, 100),
+    bfm: r.ranged(90, 10),
+    tbw: r.ranged(102, 10),
+    // 114 は筋肉量（範囲つき）
+    ffm: r.dec(126, 4, 10),
+    weight: r.ranged(138, 10),
+    weightPct: r.dec(150, 4, 10),
+    smm: InBodyValue(r.dec(154, 4, 10), r.dec(b + 44, 4, 10), r.dec(b + 48, 4, 10)),
+    smmPct: r.dec(158, 4, 10),
+    bfmPct: r.dec(162, 4, 10),
+    bmi: InBodyValue(r.dec(166, 4, 10), r.dec(b + 60, 4, 10), r.dec(b + 64, 4, 10)),
+    pbf: InBodyValue(r.dec(170, 4, 10), r.dec(b + 72, 4, 10), r.dec(b + 76, 4, 10)),
+    segmentLean: r.segments(174, const [100, 100, 10, 100, 100]),
+    segmentFat: r.segments(194, const [10, 10, 10, 10, 10]),
+    score: r.integer(214, 3),
+    targetWeight: r.dec(217, 4, 10),
+    weightControl: r.signed(221, 5, 10),
+    fatControl: r.signed(226, 5, 10),
+    muscleControl: r.signed(231, 5, 10),
+    bmr: null,
+    whr: r.ranged(246, 100),
+    recommendedKcal: null,
+    visceralLevel: null,
+    waistCm: r.dec(b + 52, 4, 10),
+    impedances: [
+      (label: '5kHz', values: r.segments(imp, const [10, 10, 10, 10, 10])),
+      (label: '50kHz', values: r.segments(imp + 20, const [10, 10, 10, 10, 10])),
+      (label: '500kHz', values: r.segments(imp + 40, const [10, 10, 10, 10, 10])),
+    ],
+  );
+}
+
+InBodyResult _parse270(String text, String d) {
+  const model = '270';
   final r = _Reader(d);
 
   final bmiRange = [r.dec(359, 4, 10), r.dec(363, 4, 10)];
@@ -244,7 +306,7 @@ InBodyResult parseInBodyQr(String text) {
   final visceral = r.integer(270, 4) ~/ 10;
   final age = r.integer(47, 3);
 
-  final result = InBodyResult(
+  return InBodyResult(
     raw: text.trim(),
     model: model,
     heightCm: r.dec(43, 4, 10),
@@ -271,16 +333,15 @@ InBodyResult parseInBodyQr(String text) {
     bmr: r.integer(176, 4),
     whr: r.ranged(180, 100),
     recommendedKcal: r.integer(202, 4),
-    impedance20k: r.segments(226, const [10, 10, 10, 10, 10]),
-    impedance100k: r.segments(246, const [10, 10, 10, 10, 10]),
+    impedances: [
+      (label: '20kHz', values: r.segments(226, const [10, 10, 10, 10, 10])),
+      (label: '100kHz', values: r.segments(246, const [10, 10, 10, 10, 10])),
+    ],
     visceralLevel: (visceral >= 1 && visceral <= 30) ? visceral : null,
     segmentLean: r.segments(379, const [100, 100, 10, 100, 100]),
     segmentFat: r.segments(399, const [10, 10, 10, 10, 10]),
     waistCm: r.dec(427, 4, 10),
   );
-
-  _validate(result);
-  return result;
 }
 
 void _validate(InBodyResult x) {

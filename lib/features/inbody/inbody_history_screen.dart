@@ -27,7 +27,7 @@ class _Metric {
   final int digits;
 }
 
-double? _qr(_BodyDay d, double Function(InBodyResult r) f) => d.result == null ? null : f(d.result!);
+double? _qr(_BodyDay d, double? Function(InBodyResult r) f) => d.result == null ? null : f(d.result!);
 
 final _basicMetrics = <_Metric>[
   _Metric('体重', 'kg', (d) => d.weight),
@@ -42,7 +42,7 @@ final _detailMetrics = <_Metric>[
   _Metric('BMI', '', (d) => _qr(d, (r) => r.bmi.value), qrOnly: true),
   _Metric('体水分量', 'kg', (d) => _qr(d, (r) => r.tbw.value), qrOnly: true),
   _Metric('タンパク質', 'kg', (d) => _qr(d, (r) => r.protein.value), qrOnly: true),
-  _Metric('基礎代謝量', 'kcal', (d) => _qr(d, (r) => r.bmr.toDouble()), qrOnly: true, digits: 0),
+  _Metric('基礎代謝量', 'kcal', (d) => _qr(d, (r) => r.bmr?.toDouble()), qrOnly: true, digits: 0),
   _Metric('内臓脂肪レベル', '', (d) => _qr(d, (r) => (r.visceralLevel ?? 0).toDouble()), qrOnly: true, digits: 0),
   _Metric('腹囲', 'cm', (d) => _qr(d, (r) => r.waistCm), qrOnly: true),
   _Metric('右腕の筋肉', 'kg', (d) => _qr(d, (r) => r.segmentLean.rightArm), qrOnly: true, digits: 2),

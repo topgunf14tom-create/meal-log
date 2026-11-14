@@ -207,6 +207,7 @@ DayBurn computeDayBurn({
   required List<RangeTotals> perGroup,
   required double heightCm,
   required double weightKg,
+  List<double?>? appKcal,
 }) {
   assert(groups.length == perGroup.length);
   final total = day.steps ?? 0;
@@ -217,15 +218,32 @@ DayBurn computeDayBurn({
     final t = perGroup[i];
     inExercise += t.steps ?? 0;
     final main = g.main;
+    // 1. 運動を記録したアプリ自身の値（Strava の取り込み・同じアプリの活動カロリー）
+    // 2. 無ければ、その時間帯の活動カロリー合計と METs の推定の大きい方。
+    //    Strava はヘルスコネクトに活動カロリーを書かないため、時間帯の合計はスマホ本体などの
+    //    一部だけになり少なく出る（17分のランで95kcalなど）
+    final own = (appKcal != null && i < appKcal.length) ? appKcal[i] : null;
     final measured = t.kcal;
-    final useMeasured = measured != null && measured > 0;
+    final estimate = estimateExerciseKcal(main.kind, g.end.difference(g.start), weightKg);
+    final double kcal;
+    final bool estimated;
+    if (own != null && own > 0) {
+      kcal = own;
+      estimated = false;
+    } else if (measured != null && measured > estimate) {
+      kcal = measured;
+      estimated = false;
+    } else {
+      kcal = estimate;
+      estimated = true;
+    }
     exercises.add(ExerciseEntry(
       kind: main.kind,
       title: main.title,
       start: g.start,
       end: g.end,
-      kcal: useMeasured ? measured : estimateExerciseKcal(main.kind, g.end.difference(g.start), weightKg),
-      estimated: !useMeasured,
+      kcal: kcal,
+      estimated: estimated,
       origins: g.origins,
     ));
   }

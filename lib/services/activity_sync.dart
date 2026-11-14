@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../core/activity.dart';
 import '../core/dates.dart';
 import '../core/inbody.dart';
+import '../core/strava_archive.dart';
 import '../data/app_db.dart';
 import '../data/app_settings.dart';
 import '../data/entities.dart';
@@ -120,7 +121,7 @@ class ActivitySync {
     final end = now.isBefore(dayEnd) ? now : dayEnd;
     if (!end.isAfter(start)) return;
 
-    final sessions = granted.contains('exercise') ? await health.readSessions(start, end) : <ExerciseSession>[];
+    final sessions = granted.contains('exercise') ? await health.readSessions(start, end, metrics: true) : <ExerciseSession>[];
     final groups = groupSessions(sessions, start, end);
     final totals = await health.aggregate([
       (start, end),
@@ -129,12 +130,18 @@ class ActivitySync {
     if (totals.isEmpty) return;
 
     final weightKg = (await db.weightOnOrBefore(ymd(start)))?.kg ?? fallbackWeightKg;
+    // 運動ごとのアプリ自身のカロリー：取り込んだ Strava の記録（時間が重なるもの）→ 同じアプリの活動カロリー
+    final imported = await db.stravaActivities(from: addDays(start, -1));
+    final appKcal = <double?>[
+      for (final g in groups) _importedKcal(imported, g) ?? _maxKcal(g),
+    ];
     final burn = computeDayBurn(
       day: totals.first,
       groups: groups,
       perGroup: totals.sublist(1),
       heightCm: await heightCm(),
       weightKg: weightKg,
+      appKcal: appKcal,
     );
     await db.saveActivity(ActivityDay(
       date: ymd(start),
@@ -144,6 +151,26 @@ class ActivitySync {
       exercises: burn.exercises,
       syncedAt: now,
     ));
+  }
+
+  static double? _maxKcal(ExerciseGroup g) {
+    final l = g.sessions.map((x) => x.kcal).whereType<double>().where((v) => v > 0).toList();
+    return l.isEmpty ? null : l.reduce((a, b) => a > b ? a : b);
+  }
+
+  /// 取り込んだ Strava の記録のうち、時間が半分以上重なるもののカロリー
+  static double? _importedKcal(List<StravaActivity> list, ExerciseGroup g) {
+    for (final a in list) {
+      final kcal = a.kcal;
+      if (kcal == null || kcal <= 0) continue;
+      final aEnd = a.start.add(Duration(seconds: a.elapsedS.round()));
+      final from = a.start.isAfter(g.start) ? a.start : g.start;
+      final to = aEnd.isBefore(g.end) ? aEnd : g.end;
+      final overlap = to.difference(from).inSeconds;
+      final shorter = [aEnd.difference(a.start).inSeconds, g.end.difference(g.start).inSeconds].reduce((x, y) => x < y ? x : y);
+      if (overlap > 0 && shorter > 0 && overlap * 2 >= shorter) return kcal;
+    }
+    return null;
   }
 
   /// 計算に使う身長：設定の手入力 → ヘルスコネクト → 最新の InBody → 仮の値

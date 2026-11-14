@@ -93,6 +93,31 @@ void main() {
       expect(b.walkSteps, 1000);
     });
 
+    test('時間帯の活動カロリーが推定より少なければ推定を使う（Strava は活動カロリーを書かない）', () {
+      final b = computeDayBurn(
+        day: const RangeTotals(steps: 5000),
+        groups: groups,
+        perGroup: const [RangeTotals(steps: 4000, kcal: 95)],
+        heightCm: 170,
+        weightKg: 70,
+      );
+      expect(b.exercises.single.kcal, closeTo(308, 0.01));
+      expect(b.exercises.single.estimated, isTrue);
+    });
+
+    test('記録したアプリ自身の値（Strava の取り込みなど）を最優先', () {
+      final b = computeDayBurn(
+        day: const RangeTotals(steps: 5000),
+        groups: groups,
+        perGroup: const [RangeTotals(steps: 4000, kcal: 95)],
+        heightCm: 170,
+        weightKg: 70,
+        appKcal: const [212],
+      );
+      expect(b.exercises.single.kcal, 212);
+      expect(b.exercises.single.estimated, isFalse);
+    });
+
     test('運動中の歩数が合計を超えても歩行はマイナスにならない', () {
       final b = computeDayBurn(
         day: const RangeTotals(steps: 100),
